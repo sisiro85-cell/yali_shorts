@@ -1,0 +1,11 @@
+:root {
+  --yali-bg: #f7f4ef; --yali-surface: #fffdfa; --yali-surface-muted: #eeeae3;
+  --yali-text: #171513; --yali-text-muted: #746d63; --yali-border: #ddd6cc;
+  --yali-accent: #806d5f; --yali-danger: #b95745; --yali-radius-sm: 6px;
+  --yali-radius-md: 10px; --yali-shadow-soft: 0 6px 24px rgb(42 34 25 / 7%);
+  --color-background: #f4f1eb; --color-surface: #fffefb; --color-surface-muted: #ece8e1;
+  --color-text-primary: #252421; --color-text-secondary: #6f6a62; --color-text-disabled: #9c978f;
+  --color-border: #d8d2c9; --color-border-strong: #beb7ad; --color-action-primary: #2d2b28;
+  --color-action-primary-text: #fffefb; --color-focus-ring: #6d6257; --color-attention: #817568;
+  --color-error: #574b45; --media-filter: none;
+}

@@ -1,0 +1,16 @@
+{
+  "name": "yali-short-form-studio-render-worker",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "lint": "tsc --noEmit",
+    "unit": "npm run build && node --test dist/composition.test.js dist/renderer.test.js dist/server.test.js",
+    "start": "node dist/index.js"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "typescript": "7.0.2"
+  }
+}

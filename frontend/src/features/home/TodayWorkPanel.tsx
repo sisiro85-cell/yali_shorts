@@ -1,0 +1,8 @@
+import { Clock, FileText, Image, PlayCircle, Warning } from "@phosphor-icons/react";
+import type { JobSummary, ProjectSummary } from "../../app/api";
+
+export function TodayWorkPanel({ project, jobs }: { project: ProjectSummary | null; jobs: JobSummary[] }) {
+  const failedJobs = jobs.filter((job) => job.status === "failed"); const queuedJobs = jobs.filter((job) => job.status === "queued"); const activeProject = project; const today = new Date(); const dateLabel = new Intl.DateTimeFormat("ko-KR", { month: "long", day: "numeric", weekday: "short" }).format(today);
+  const entries = [{ label: "컷 구성 진행", detail: activeProject?.title ?? "진행 중인 프로젝트 없음", value: activeProject ? `컷 ${activeProject.cut_count}개` : "대기", icon: PlayCircle }, { label: "생성 실패", detail: failedJobs[0]?.error ?? "실패한 작업 없음", value: failedJobs.length ? `${failedJobs.length}건` : "없음", icon: failedJobs.length ? Warning : Image }, { label: "렌더링 대기", detail: queuedJobs[0]?.kind ?? "대기 중인 렌더 없음", value: queuedJobs.length ? `${queuedJobs.length}건` : "없음", icon: Clock }, { label: "대본 확인", detail: activeProject?.title ?? "프로젝트를 선택해 주세요", value: activeProject ? "현재 단계 확인" : "없음", icon: FileText }];
+  return <section className="today-work" aria-labelledby="today-work-title"><div className="panel-heading"><h2 id="today-work-title">오늘 작업</h2><time dateTime={today.toISOString().slice(0, 10)}>{dateLabel}</time></div>{entries.map((entry) => { const EntryIcon = entry.icon; return <div className="today-work__item" key={entry.label}><EntryIcon size={23} weight="regular" aria-hidden="true" /><div><strong>{entry.label}</strong><span>{entry.detail}</span></div><small>{entry.value}</small></div>; })}</section>;
+}

@@ -90,6 +90,16 @@ function DesignCutCard({ projectId, cut, isBusy, busyAction, onRegenerate }: Des
           <span className="design-cut-card__duration"><Clock size={14} aria-hidden="true" />{formatDuration(cut.duration_ms)}</span>
         </div>
         <h3 id={`design-cut-title-${cut.id}`}>{cut.title}</h3>
+        <button
+          className="button button--primary design-cut-card__action"
+          type="button"
+          onClick={handleRegenerate}
+          disabled={cut.locked || isBusy}
+          aria-busy={isGenerating}
+        >
+          <ArrowClockwise size={16} aria-hidden="true" />
+          {actionLabel}
+        </button>
 
         <dl className="design-cut-card__details">
           <div>
@@ -121,16 +131,6 @@ function DesignCutCard({ projectId, cut, isBusy, busyAction, onRegenerate }: Des
           <span>{cut.media_asset_id ? "현재 이미지 연결됨" : "이미지 생성 필요"}</span>
           {cut.locked ? <span><Lock size={14} aria-hidden="true" />컷 잠금</span> : null}
         </div>
-        <button
-          className="button button--primary design-cut-card__action"
-          type="button"
-          onClick={handleRegenerate}
-          disabled={cut.locked || isBusy}
-          aria-busy={isGenerating}
-        >
-          <ArrowClockwise size={16} aria-hidden="true" />
-          {actionLabel}
-        </button>
         {cut.error ? <p className="design-cut-card__error" role="alert">{cut.error}</p> : null}
       </div>
     </article>

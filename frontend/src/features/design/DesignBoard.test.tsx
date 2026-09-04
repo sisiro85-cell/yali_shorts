@@ -83,6 +83,26 @@ test("renders each cut image and provides per-cut generation actions", () => {
   expect(onRegenerate).toHaveBeenCalledWith("cut-2", {});
 });
 
+test("shows the image action before the detailed settings", () => {
+  render(
+    <DesignBoard
+      projectId="project-1"
+      data={board}
+      isLoading={false}
+      error=""
+      onRegenerate={vi.fn()}
+      onContinueToOutput={vi.fn()}
+      onBackToCuts={vi.fn()}
+    />,
+  );
+
+  const action = screen.getByRole("button", { name: "컷 1 이미지 재생성" });
+  const settings = document.getElementById("design-cut-prompt-cut-1")?.closest("details");
+
+  expect(settings).not.toBeNull();
+  expect(action.compareDocumentPosition(settings!)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+});
+
 test("allows moving to output after every cut image is ready", () => {
   const onContinueToOutput = vi.fn();
   const completeBoard: CutBoardData = {

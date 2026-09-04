@@ -4,8 +4,8 @@ import json
 import os
 import subprocess
 from pathlib import Path
-from typing import Any
 
+from yali.ai.providers.codex_mcp import generate_image as generate_image_via_mcp
 from yali.ai.providers.codex_app_server import process_creation_kwargs, resolve_codex_command
 from yali.ai.protocols import (
     ImageGenerationRequest,
@@ -111,9 +111,6 @@ def _raise_for_failed_output(output: str) -> None:
             continue
         if event.get("type") in {"error", "turn.failed"}:
             raise CodexImageError("Codex ImageGen 생성에 실패했습니다.")
-        item = event.get("item")
-        if event.get("type") == "item.completed" and isinstance(item, dict) and item.get("type") == "error":
-            raise CodexImageError("Codex ImageGen 생성에 실패했습니다.")
 
 
 def generate_image(
@@ -187,7 +184,7 @@ class CodexImageProvider:
 
     def generate(self, request: ImageGenerationRequest) -> ImageGenerationResponse:
         model = (request.model_name or self.model).strip()
-        content = generate_image(
+        content = generate_image_via_mcp(
             request.prompt,
             model_name=model,
             cwd=self.cwd,

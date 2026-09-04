@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import json
 import os
 import queue
@@ -16,6 +17,8 @@ from yali.ai.protocols import ProviderHealth, TextGenerationRequest, TextGenerat
 DEFAULT_TIMEOUT_SECONDS = 300.0
 MCP_PROTOCOL_VERSION = "2025-11-25"
 MCP_TOOL_NAME = "generate_text"
+MCP_IMAGE_TOOL_NAME = "generate_image"
+_PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 _END = object()
 
 
@@ -154,7 +157,11 @@ def _close_process(process: subprocess.Popen[str]) -> None:
                 pass
 
 
-def _initialize_and_discover(session: _Session) -> None:
+def _initialize_and_discover(
+    session: _Session,
+    *,
+    required_tool: str = MCP_TOOL_NAME,
+) -> None:
     initialized = session.request(
         "initialize",
         {
@@ -174,9 +181,9 @@ def _initialize_and_discover(session: _Session) -> None:
     session.notify("notifications/initialized", {})
     tools = session.request("tools/list", {}).get("tools")
     if not isinstance(tools, list) or not any(
-        isinstance(tool, dict) and tool.get("name") == MCP_TOOL_NAME for tool in tools
+        isinstance(tool, dict) and tool.get("name") == required_tool for tool in tools
     ):
-        raise CodexMcpError("Codex MCP generate_text tool is unavailable")
+        raise CodexMcpError(f"Codex MCP {required_tool} tool is unavailable")
 
 
 def check_connection(
@@ -212,6 +219,34 @@ def _tool_text(result: dict[str, Any]) -> str:
     return text
 
 
+def _tool_image(result: dict[str, Any]) -> bytes:
+    content = result.get("content")
+    if not isinstance(content, list):
+        raise CodexMcpError("Codex MCP returned invalid image content")
+    if result.get("isError"):
+        raise CodexMcpError("Codex MCP image generation failed")
+    encoded = next(
+        (
+            item.get("data")
+            for item in content
+            if isinstance(item, dict)
+            and item.get("type") == "image"
+            and item.get("mimeType") == "image/png"
+            and isinstance(item.get("data"), str)
+        ),
+        None,
+    )
+    if not isinstance(encoded, str) or not encoded:
+        raise CodexMcpError("Codex MCP returned no PNG image content")
+    try:
+        image = base64.b64decode(encoded, validate=True)
+    except (ValueError, base64.binascii.Error) as exc:
+        raise CodexMcpError("Codex MCP returned invalid PNG image content") from exc
+    if not image.startswith(_PNG_SIGNATURE):
+        raise CodexMcpError("Codex MCP returned a non-PNG image")
+    return image
+
+
 def generate_text(
     prompt: str,
     model_name: str = "",
@@ -232,6 +267,30 @@ def generate_text(
             "tools/call", {"name": MCP_TOOL_NAME, "arguments": arguments}
         )
         return _tool_text(result)
+    finally:
+        _close_process(process)
+
+
+def generate_image(
+    prompt: str,
+    model_name: str = "",
+    cwd: str | None = None,
+    timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
+) -> bytes:
+    working_directory = Path(cwd or Path.cwd()).resolve()
+    process = _start_process(working_directory)
+    session = _Session(process, timeout_seconds)
+    try:
+        _initialize_and_discover(session, required_tool=MCP_IMAGE_TOOL_NAME)
+        arguments = {"prompt": prompt}
+        if model_name.strip():
+            arguments["model_name"] = model_name.strip()
+        if cwd is not None:
+            arguments["cwd"] = cwd
+        result = session.request(
+            "tools/call", {"name": MCP_IMAGE_TOOL_NAME, "arguments": arguments}
+        )
+        return _tool_image(result)
     finally:
         _close_process(process)
 

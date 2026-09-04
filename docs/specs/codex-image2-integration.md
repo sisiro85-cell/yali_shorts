@@ -7,7 +7,7 @@
 ## 확정 요구사항
 
 1. OpenAI API 키를 요구하지 않는다. 로컬에 로그인된 Codex CLI를 사용한다.
-2. 백엔드는 텍스트용 Codex MCP 경로와 별도로 이미지 생성 Provider를 가진다.
+2. 백엔드는 텍스트용 Codex MCP 경로와 별도로 이미지 생성 Provider를 가지며, 같은 로컬 MCP 브리지를 통해 이미지 도구를 호출한다.
 3. 이미지 Provider는 컷의 \`visual_prompt\`를 ImageGen에 전달하고, Codex가 생성한 PNG를 프로젝트의 \`storage/projects/<project_id>/assets/generated\`에 복사한다.
 4. 기존의 컷별 재생성 및 상단 전체 이미지 생성 버튼을 그대로 사용한다.
 5. 이미지 생성이 실패하면 작업 상태를 \`failed\`로 만들고 원인을 사용자에게 표시한다. 실패 시 SVG를 실제 이미지인 것처럼 자동 대체하지 않는다.

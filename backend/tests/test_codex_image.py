@@ -5,8 +5,15 @@ from pathlib import Path
 import pytest
 
 from yali.ai import protocols
+from yali.ai.providers.codex_mcp import _tool_image
 from yali.ai.providers import codex_image
-from yali.ai.providers.codex_image import CodexImageError, CodexImageProvider, _find_generated_png, _image_prompt
+from yali.ai.providers.codex_image import (
+    CodexImageError,
+    CodexImageProvider,
+    _find_generated_png,
+    _image_prompt,
+    _raise_for_failed_output,
+)
 
 
 def test_image_prompt_forbids_placeholder_output() -> None:
@@ -107,7 +114,7 @@ def test_generate_image_rejects_non_png_result(
 
 def test_codex_image_provider_returns_png_response(monkeypatch: pytest.MonkeyPatch) -> None:
     content = b"\x89PNG\r\n\x1a\nprovider-image"
-    monkeypatch.setattr(codex_image, "generate_image", lambda *args, **kwargs: content)
+    monkeypatch.setattr(codex_image, "generate_image_via_mcp", lambda *args, **kwargs: content)
     provider = CodexImageProvider(model="subscription-model", cwd="C:/workspace")
     request = protocols.ImageGenerationRequest(
         prompt="도시 장면",
@@ -127,3 +134,54 @@ def test_codex_image_provider_returns_png_response(monkeypatch: pytest.MonkeyPat
     assert response.media_type == "image/png"
     assert response.provider == "codex_image"
     assert response.model == "subscription-model"
+
+
+def test_codex_image_provider_uses_the_local_mcp_image_tool(monkeypatch: pytest.MonkeyPatch) -> None:
+    content = b"\x89PNG\r\n\x1a\nvia-mcp"
+    monkeypatch.setattr(codex_image, "generate_image_via_mcp", lambda *args, **kwargs: content)
+    provider = CodexImageProvider(model="subscription-model")
+    request = protocols.ImageGenerationRequest(
+        prompt="MCP 이미지",
+        model_name=None,
+        metadata=protocols.GenerationMetadata(
+            request_id="request-mcp-image-1",
+            project_id="project-1",
+            cut_id="cut-1",
+            operation=protocols.Operation.REGENERATE_CUT,
+            model="subscription-model",
+        ),
+    )
+
+    response = provider.generate(request)
+
+    assert response.content == content
+
+
+def test_mcp_image_content_decodes_only_png_image_items() -> None:
+    import base64
+
+    content = b"\x89PNG\r\n\x1a\nvia-mcp"
+
+    assert _tool_image(
+        {
+            "content": [
+                {"type": "text", "text": "IMAGE_GENERATED"},
+                {
+                    "type": "image",
+                    "data": base64.b64encode(content).decode("ascii"),
+                    "mimeType": "image/png",
+                },
+            ],
+            "isError": False,
+        }
+    ) == content
+
+
+def test_codex_skill_context_warning_does_not_fail_image_generation() -> None:
+    output = (
+        '{"type":"item.completed","item":{"id":"item_0","type":"error",'
+        '"message":"Skill descriptions were shortened to fit the skills context budget."}}\n'
+        '{"type":"turn.completed"}\n'
+    )
+
+    _raise_for_failed_output(output)

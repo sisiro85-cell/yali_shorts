@@ -84,7 +84,7 @@ try {
   Copy-FileChecked $releaseExe (Join-Path $stage "YaliShortformStudio.exe")
   Copy-Tree $basePython (Join-Path $stage "runtime\python") @("__pycache__") @("*.pyc")
   $portablePython = Join-Path $stage "runtime\python\python.exe"
-  & $portablePython -m pip install --disable-pip-version-check --no-cache-dir --upgrade `
+  & $portablePython -m pip install --disable-pip-version-check --no-cache-dir --break-system-packages --upgrade `
     "fastapi==0.141.1" `
     "uvicorn[standard]==0.52.4" `
     "pydantic==2.13.5" `

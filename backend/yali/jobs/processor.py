@@ -14,6 +14,7 @@ from yali.jobs.queue import JobNotFoundError, PersistentJobQueue
 from yali.ai.providers.codex_image import CodexImageError
 from yali.media.generator import GeneratedCutVisual, attach_generated_cut_visual
 from yali.media.render_client import RenderWorkerClient
+from yali.media.aspect import target_aspect_ratio_for_project
 from yali.rendering.manifest import OutputManifest
 from yali.storage.project_store import CutNotFoundError, ProjectRevisionConflict, ProjectStore
 
@@ -185,10 +186,12 @@ class JobProcessor:
                         public_message="이미지 생성 Provider가 설정되지 않았습니다.",
                     )
                 model_name = _provider_model(self.image_provider)
+                target_aspect_ratio = target_aspect_ratio_for_project(current)
                 response = self.image_provider.generate(
                     ImageGenerationRequest(
                         prompt=current_cut.visual_prompt,
                         model_name=model_name,
+                        aspect_ratio=target_aspect_ratio,
                         metadata=GenerationMetadata(
                             request_id=str(job.id),
                             project_id=str(current.id),
@@ -205,6 +208,7 @@ class JobProcessor:
                         self.store.projects_root / str(current.id) / "assets",
                         content=response.content,
                         media_type=response.media_type,
+                        expected_aspect_ratio=target_aspect_ratio,
                     )
                 )
             except JobProcessingError:

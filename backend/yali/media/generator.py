@@ -7,6 +7,7 @@ from pathlib import Path
 from uuid import UUID, uuid5
 
 from yali.domain.models import Cut, MediaAsset, Project
+from yali.media.aspect import ImageAspectRatio, is_aspect_ratio_compatible
 from yali.media.probe import detect_image_dimensions
 
 
@@ -28,6 +29,7 @@ def attach_generated_cut_visual(
     *,
     content: bytes,
     media_type: str = "image/png",
+    expected_aspect_ratio: ImageAspectRatio | None = None,
 ) -> GeneratedCutVisual:
     """Persist provider-generated image bytes and attach them to the active cut."""
     version = _active_version(cut)
@@ -41,6 +43,13 @@ def attach_generated_cut_visual(
     dimensions = detect_image_dimensions(content, normalized_media_type)
     if dimensions is None:
         raise ValueError("Cut image provider returned a PNG without dimensions")
+    if expected_aspect_ratio is not None and not is_aspect_ratio_compatible(
+        dimensions[0], dimensions[1], expected_aspect_ratio
+    ):
+        raise ValueError(
+            "Cut image provider returned an image with an incompatible "
+            f"aspect ratio; expected {expected_aspect_ratio}"
+        )
 
     content_hash = hashlib.sha256(content).hexdigest()
     asset_id = uuid5(_GENERATED_ASSET_NAMESPACE, f"{cut.id}:{version.id}")

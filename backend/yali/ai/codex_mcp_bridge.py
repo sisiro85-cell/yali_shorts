@@ -53,6 +53,7 @@ def _image_tool() -> dict[str, Any]:
                 "prompt": {"type": "string"},
                 "model_name": {"type": "string"},
                 "cwd": {"type": "string"},
+                "aspect_ratio": {"type": "string", "enum": ["9:16", "1:1"]},
             },
             "required": ["prompt"],
             "additionalProperties": False,
@@ -78,22 +79,25 @@ def _arguments(value: Any) -> tuple[str, str, str | None]:
     return prompt, model, cwd
 
 
-def _image_arguments(value: Any) -> tuple[str, str, str | None]:
+def _image_arguments(value: Any) -> tuple[str, str, str | None, str]:
     if not isinstance(value, dict):
         raise ValueError("generate_image arguments must be an object")
-    unknown = set(value) - {"prompt", "model_name", "cwd"}
+    unknown = set(value) - {"prompt", "model_name", "cwd", "aspect_ratio"}
     if unknown:
         raise ValueError("generate_image received unsupported arguments")
     prompt = value.get("prompt")
     model = value.get("model_name", "")
     cwd = value.get("cwd")
+    aspect_ratio = value.get("aspect_ratio", "9:16")
     if not isinstance(prompt, str) or not prompt.strip():
         raise ValueError("generate_image requires a non-empty prompt")
     if not isinstance(model, str):
         raise ValueError("model_name must be a string")
     if cwd is not None and not isinstance(cwd, str):
         raise ValueError("cwd must be a string")
-    return prompt, model, cwd
+    if aspect_ratio not in {"9:16", "1:1"}:
+        raise ValueError("aspect_ratio must be 9:16 or 1:1")
+    return prompt, model, cwd, aspect_ratio
 
 
 def handle_request(
@@ -137,8 +141,13 @@ def handle_request(
             return _error(request_id, -32602, "Unknown tool")
         if tool_name == MCP_IMAGE_TOOL_NAME:
             try:
-                prompt, model, cwd = _image_arguments(params.get("arguments"))
-                image = generate_image(prompt=prompt, model_name=model, cwd=cwd)
+                prompt, model, cwd, aspect_ratio = _image_arguments(params.get("arguments"))
+                image = generate_image(
+                    prompt=prompt,
+                    model_name=model,
+                    cwd=cwd,
+                    aspect_ratio=aspect_ratio,
+                )
             except ValueError as exc:
                 return _error(request_id, -32602, str(exc))
             except Exception:

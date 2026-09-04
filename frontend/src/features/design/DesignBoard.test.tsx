@@ -200,3 +200,35 @@ test("keeps the next-stage action unavailable until every cut has an image", () 
   expect(screen.getByRole("button", { name: "출력으로 이동" })).toBeDisabled();
   expect(screen.getByText("모든 컷 이미지를 생성하면 출력 단계로 이동할 수 있습니다.")).toBeInTheDocument();
 });
+
+test("marks a generated image whose dimensions do not match the output canvas", () => {
+  const mismatchedBoard = {
+    ...board,
+    target_aspect_ratio: "9:16",
+    scenes: [{
+      ...board.scenes[0],
+      cuts: [{
+        ...board.scenes[0].cuts[0],
+        media_width: 1536,
+        media_height: 1024,
+      }],
+    }],
+  } as unknown as CutBoardData;
+
+  render(
+    <DesignBoard
+      projectId="project-1"
+      data={mismatchedBoard}
+      isLoading={false}
+      error=""
+      onRegenerate={vi.fn()}
+      onGenerateAll={vi.fn()}
+      onContinueToOutput={vi.fn()}
+      onBackToCuts={vi.fn()}
+    />,
+  );
+
+  expect(screen.getByText("출력 비율 9:16과 맞지 않습니다. 이미지 재생성이 필요합니다.")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "이미지 전체 생성" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "출력으로 이동" })).toBeDisabled();
+});

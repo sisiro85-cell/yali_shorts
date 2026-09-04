@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { ArrowClockwise, Clock, FileText, Image as ImageIcon, Lock, Sparkle } from "@phosphor-icons/react";
-import { resolveMediaUrl, type CutBoardData, type CutBoardCut, type CutBoardScene, type CutRegenerationOptions } from "../../app/api";
+import { resolveMediaUrl, type CutBoardData, type CutBoardCut, type CutBoardScene, type CutRegenerationOptions, type ImageAspectRatio } from "../../app/api";
 import type { CutAction } from "../cuts/CutCard";
 import "./design.css";
 
@@ -39,20 +39,38 @@ function previewUrl(projectId: string, cut: CutBoardCut) {
     : null;
 }
 
+function aspectRatioValue(aspectRatio: ImageAspectRatio) {
+  return aspectRatio === "1:1" ? 1 : 9 / 16;
+}
+
+function isImageReady(cut: CutBoardCut, targetAspectRatio: ImageAspectRatio) {
+  if (!cut.media_asset_id) return false;
+  if (!cut.media_width || !cut.media_height) return true;
+  const actual = cut.media_width / cut.media_height;
+  const expected = aspectRatioValue(targetAspectRatio);
+  return Math.abs(actual - expected) / expected <= 0.04;
+}
+
+function hasAspectRatioMismatch(cut: CutBoardCut, targetAspectRatio: ImageAspectRatio) {
+  return Boolean(cut.media_asset_id && cut.media_width && cut.media_height && !isImageReady(cut, targetAspectRatio));
+}
+
 interface DesignCutCardProps {
   projectId: string;
   scene: Pick<CutBoardScene, "order" | "title">;
   cut: CutBoardCut;
+  targetAspectRatio: ImageAspectRatio;
   isBusy: boolean;
   busyAction: CutAction | null;
   onRegenerate: DesignBoardProps["onRegenerate"];
 }
 
-function DesignCutCard({ projectId, scene, cut, isBusy, busyAction, onRegenerate }: DesignCutCardProps) {
+function DesignCutCard({ projectId, scene, cut, targetAspectRatio, isBusy, busyAction, onRegenerate }: DesignCutCardProps) {
   const [visualPrompt, setVisualPrompt] = useState(cut.visual_prompt);
   const [isPromptEdited, setIsPromptEdited] = useState(false);
   const imageUrl = previewUrl(projectId, cut);
   const hasImage = Boolean(imageUrl);
+  const ratioMismatch = hasAspectRatioMismatch(cut, targetAspectRatio);
   const isGenerating = isBusy && busyAction === "regenerate";
 
   useEffect(() => {
@@ -83,8 +101,8 @@ function DesignCutCard({ projectId, scene, cut, isBusy, busyAction, onRegenerate
             <p>{cut.status === "failed" ? "이전 생성에 실패했습니다. 다시 생성해 주세요." : "이 컷의 이미지를 생성해 주세요."}</p>
           </div>
         )}
-        <span className={`design-cut-card__image-status design-cut-card__image-status--${cut.status}`} aria-live="polite">
-          {imageStatus}
+        <span className={`design-cut-card__image-status design-cut-card__image-status--${ratioMismatch ? "mismatch" : cut.status}`} aria-live="polite">
+          {ratioMismatch ? "비율 확인 필요" : imageStatus}
         </span>
       </div>
 
@@ -135,9 +153,10 @@ function DesignCutCard({ projectId, scene, cut, isBusy, busyAction, onRegenerate
         </details>
 
         <div className="design-cut-card__footer">
-          <span>{cut.media_asset_id ? "현재 이미지 연결됨" : "이미지 생성 필요"}</span>
+          <span>{ratioMismatch ? "출력 비율 불일치" : cut.media_asset_id ? "현재 이미지 연결됨" : "이미지 생성 필요"}</span>
           {cut.locked ? <span><Lock size={14} aria-hidden="true" />컷 잠금</span> : null}
         </div>
+        {ratioMismatch ? <p className="design-cut-card__ratio-warning" role="status">출력 비율 {targetAspectRatio}과 맞지 않습니다. 이미지 재생성이 필요합니다.</p> : null}
         {cut.error ? <p className="design-cut-card__error" role="alert">{cut.error}</p> : null}
       </div>
     </article>
@@ -148,20 +167,21 @@ function countCuts(data: CutBoardData | null) {
   return data?.scenes.reduce((total, scene) => total + scene.cuts.length, 0) ?? 0;
 }
 
-function countReadyImages(data: CutBoardData | null) {
-  return data?.scenes.reduce((total, scene) => total + scene.cuts.filter((cut) => Boolean(cut.media_asset_id)).length, 0) ?? 0;
+function countReadyImages(data: CutBoardData | null, targetAspectRatio: ImageAspectRatio) {
+  return data?.scenes.reduce((total, scene) => total + scene.cuts.filter((cut) => isImageReady(cut, targetAspectRatio)).length, 0) ?? 0;
 }
 
 export function DesignBoard({ projectId, data, isLoading = false, error, notice, busyCutId = null, busyCutAction = null, onRegenerate, onGenerateAll, isGeneratingAll = false, bulkProgress = null, onBackToCuts, onContinueToOutput, isContinuing = false }: DesignBoardProps) {
   const totalCuts = countCuts(data);
-  const readyImages = countReadyImages(data);
+  const targetAspectRatio = data?.target_aspect_ratio ?? "9:16";
+  const readyImages = countReadyImages(data, targetAspectRatio);
   const hasCuts = totalCuts > 0;
   const isStale = data?.stale ?? false;
   const allImagesReady = hasCuts && readyImages === totalCuts;
   const allCuts = data?.scenes.flatMap((scene) => scene.cuts) ?? [];
   const imageGenerationTargets = allImagesReady
     ? allCuts.filter((cut) => !cut.locked)
-    : allCuts.filter((cut) => !cut.media_asset_id && !cut.locked);
+    : allCuts.filter((cut) => !isImageReady(cut, targetAspectRatio) && !cut.locked);
   const isBusy = Boolean(busyCutId) || isLoading || isGeneratingAll;
   const bulkActionLabel = isGeneratingAll
     ? bulkProgress
@@ -222,6 +242,7 @@ export function DesignBoard({ projectId, data, isLoading = false, error, notice,
                 projectId={projectId}
                 scene={scene}
                 cut={cut}
+                targetAspectRatio={targetAspectRatio}
                 isBusy={isGeneratingAll || busyCutId === cut.id}
                 busyAction={busyCutId === cut.id ? busyCutAction : null}
                 onRegenerate={onRegenerate}

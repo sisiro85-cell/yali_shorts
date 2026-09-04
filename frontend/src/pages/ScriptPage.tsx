@@ -67,7 +67,7 @@ function DesignGuide() {
       </ol>
       <div className="cut-guide__callout">
         <FileText size={19} aria-hidden="true" />
-        <div><strong>이미지는 원본 비율로 표시됩니다.</strong><p>세로 쇼츠 이미지 전체를 잘라내지 않고 카드 안에서 그대로 확인합니다.</p></div>
+        <div><strong>출력 형식에 맞는 이미지인지 확인합니다.</strong><p>릴스·쇼츠는 9:16, 카드뉴스는 1:1 비율을 사용하며 맞지 않는 이미지는 재생성이 필요합니다.</p></div>
       </div>
     </section>
   );

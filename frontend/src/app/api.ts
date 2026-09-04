@@ -1,5 +1,6 @@
 export type WorkflowStage = "idea" | "script" | "cuts" | "design" | "output" | "completed" | "failed";
 export type IdeaFormat = "shorts" | "reels" | "card_news";
+export type ImageAspectRatio = "9:16" | "1:1";
 export type JobStatus = "queued" | "running" | "completed" | "failed" | "cancelled";
 export type IdeaGenerationStatus = JobStatus | "idle";
 
@@ -126,6 +127,8 @@ export interface CutBoardCut {
   duration_ms: number;
   visual_prompt: string;
   media_asset_id: string | null;
+  media_width?: number | null;
+  media_height?: number | null;
   audio_asset_id: string | null;
   narration_text: string;
   subtitle: string;
@@ -159,6 +162,7 @@ export interface CutBoardData {
   project_title: string;
   stage: WorkflowStage;
   script_version_id: string | null;
+  target_aspect_ratio?: ImageAspectRatio;
   stale: boolean;
   scenes: CutBoardScene[];
 }

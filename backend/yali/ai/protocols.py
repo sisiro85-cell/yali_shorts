@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Protocol, runtime_checkable
 
+from yali.media.aspect import ImageAspectRatio
 
 class Operation(StrEnum):
     ANALYZE_SOURCE = "analyze_source"
@@ -54,6 +55,7 @@ class ImageGenerationRequest:
     prompt: str
     model_name: str | None
     metadata: GenerationMetadata
+    aspect_ratio: ImageAspectRatio = "9:16"
 
 
 @dataclass(frozen=True, slots=True)

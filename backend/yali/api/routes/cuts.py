@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Mapping
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, Header, Request, status
@@ -19,10 +20,11 @@ from yali.content.service import (
 )
 from yali.domain.commands import RegenerateOptions
 from yali.domain.enums import ProjectStage
-from yali.domain.models import Cut, CutVersion, Project, Scene
+from yali.domain.models import Cut, CutVersion, MediaAsset, Project, Scene
 from yali.jobs.models import JobAccepted
 from yali.jobs.queue import PersistentJobQueue
 from yali.storage.project_store import CutNotFoundError, ProjectStore
+from yali.media.aspect import ImageAspectRatio, target_aspect_ratio_for_project
 
 router = APIRouter(prefix="/projects/{project_id}/cuts", tags=["cuts"])
 
@@ -44,6 +46,8 @@ class CutResponse(BaseModel):
     duration_ms: int
     visual_prompt: str
     media_asset_id: UUID | None
+    media_width: int | None = None
+    media_height: int | None = None
     audio_asset_id: UUID | None
     narration_text: str
     subtitle: str
@@ -55,8 +59,17 @@ class CutResponse(BaseModel):
     versions: list[CutVersion]
 
     @classmethod
-    def from_cut(cls, cut: Cut) -> "CutResponse":
-        return cls(**cut.model_dump())
+    def from_cut(
+        cls,
+        cut: Cut,
+        assets_by_id: Mapping[UUID, MediaAsset] | None = None,
+    ) -> "CutResponse":
+        asset = assets_by_id.get(cut.media_asset_id) if assets_by_id and cut.media_asset_id else None
+        return cls(
+            **cut.model_dump(),
+            media_width=asset.width if asset else None,
+            media_height=asset.height if asset else None,
+        )
 
 
 class SceneResponse(BaseModel):
@@ -67,13 +80,17 @@ class SceneResponse(BaseModel):
     cuts: list[CutResponse]
 
     @classmethod
-    def from_scene(cls, scene: Scene) -> "SceneResponse":
+    def from_scene(
+        cls,
+        scene: Scene,
+        assets_by_id: Mapping[UUID, MediaAsset] | None = None,
+    ) -> "SceneResponse":
         return cls(
             id=scene.id,
             order=scene.order,
             title=scene.title,
             source_script_version_id=scene.source_script_version_id,
-            cuts=[CutResponse.from_cut(cut) for cut in scene.cuts],
+            cuts=[CutResponse.from_cut(cut, assets_by_id) for cut in scene.cuts],
         )
 
 
@@ -82,6 +99,7 @@ class CutBoardResponse(BaseModel):
     project_title: str
     stage: ProjectStage
     script_version_id: UUID | None
+    target_aspect_ratio: ImageAspectRatio = "9:16"
     stale: bool = False
     scenes: list[SceneResponse]
 
@@ -149,7 +167,7 @@ def apply_cut_regeneration_options(
     )
     apply_cut_regeneration(cut, options)
     store.update(project)
-    return CutResponse.from_cut(cut)
+    return CutResponse.from_cut(cut, {asset.id: asset for asset in project.assets})
 
 
 @router.post("/{cut_id}/versions/{version_id}/activate", response_model=CutResponse)
@@ -173,7 +191,7 @@ def activate_historical_cut_version(
             [{"loc": ["path", "version_id"], "msg": "컷 버전을 찾을 수 없습니다.", "type": "value_error.cut_version"}]
         ) from None
     store.update(project)
-    return CutResponse.from_cut(cut)
+    return CutResponse.from_cut(cut, {asset.id: asset for asset in project.assets})
 
 
 @router.post("/{cut_id}/regenerate", response_model=JobAccepted, status_code=status.HTTP_202_ACCEPTED)
@@ -231,8 +249,15 @@ def _board_response(project: Project) -> CutBoardResponse:
         project_title=project.title,
         stage=project.stage,
         script_version_id=project.script.active_version_id,
+        target_aspect_ratio=target_aspect_ratio_for_project(project),
         stale=stale,
-        scenes=[SceneResponse.from_scene(scene) for scene in project.scenes],
+        scenes=[
+            SceneResponse.from_scene(
+                scene,
+                {asset.id: asset for asset in project.assets},
+            )
+            for scene in project.scenes
+        ],
     )
 
 

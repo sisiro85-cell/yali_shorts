@@ -11,7 +11,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from yali.ai.protocols import ProviderHealth, TextGenerationRequest, TextGenerationResponse
+from yali.ai.protocols import ImageAspectRatio, ProviderHealth, TextGenerationRequest, TextGenerationResponse
 
 
 DEFAULT_TIMEOUT_SECONDS = 300.0
@@ -276,13 +276,14 @@ def generate_image(
     model_name: str = "",
     cwd: str | None = None,
     timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
+    aspect_ratio: ImageAspectRatio = "9:16",
 ) -> bytes:
     working_directory = Path(cwd or Path.cwd()).resolve()
     process = _start_process(working_directory)
     session = _Session(process, timeout_seconds)
     try:
         _initialize_and_discover(session, required_tool=MCP_IMAGE_TOOL_NAME)
-        arguments = {"prompt": prompt}
+        arguments = {"prompt": prompt, "aspect_ratio": aspect_ratio}
         if model_name.strip():
             arguments["model_name"] = model_name.strip()
         if cwd is not None:

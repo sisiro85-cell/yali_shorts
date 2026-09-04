@@ -24,6 +24,16 @@ def test_image_prompt_forbids_placeholder_output() -> None:
     assert "스마트폰 화면에 구체적인 AI 답변이 표시된 장면" in prompt
 
 
+def test_image_prompt_declares_the_required_output_canvas() -> None:
+    portrait = _image_prompt("세로형 영상 장면", aspect_ratio="9:16")
+    square = _image_prompt("정사각 카드뉴스 장면", aspect_ratio="1:1")
+
+    assert "Mandatory output canvas" in portrait
+    assert "9:16" in portrait
+    assert "landscape" in portrait
+    assert "1:1" in square
+
+
 def test_find_generated_png_uses_only_the_current_codex_thread(tmp_path: Path) -> None:
     thread = tmp_path / "thread-current"
     thread.mkdir()
@@ -138,11 +148,18 @@ def test_codex_image_provider_returns_png_response(monkeypatch: pytest.MonkeyPat
 
 def test_codex_image_provider_uses_the_local_mcp_image_tool(monkeypatch: pytest.MonkeyPatch) -> None:
     content = b"\x89PNG\r\n\x1a\nvia-mcp"
-    monkeypatch.setattr(codex_image, "generate_image_via_mcp", lambda *args, **kwargs: content)
+    calls: list[dict[str, object]] = []
+
+    def fake_generate_image(*args: object, **kwargs: object) -> bytes:
+        calls.append(kwargs)
+        return content
+
+    monkeypatch.setattr(codex_image, "generate_image_via_mcp", fake_generate_image)
     provider = CodexImageProvider(model="subscription-model")
     request = protocols.ImageGenerationRequest(
         prompt="MCP 이미지",
         model_name=None,
+        aspect_ratio="1:1",
         metadata=protocols.GenerationMetadata(
             request_id="request-mcp-image-1",
             project_id="project-1",
@@ -155,6 +172,7 @@ def test_codex_image_provider_uses_the_local_mcp_image_tool(monkeypatch: pytest.
     response = provider.generate(request)
 
     assert response.content == content
+    assert calls[0]["aspect_ratio"] == "1:1"
 
 
 def test_mcp_image_content_decodes_only_png_image_items() -> None:

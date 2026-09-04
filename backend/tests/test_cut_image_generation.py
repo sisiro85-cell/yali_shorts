@@ -4,6 +4,7 @@ from pathlib import Path
 from uuid import UUID
 
 import json
+import struct
 from time import monotonic, sleep
 
 import pytest
@@ -29,6 +30,13 @@ from yali.storage.project_store import ProjectStore
 _PNG_1X1 = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89png"
 
 
+def _png(width: int, height: int) -> bytes:
+    return _PNG_1X1[:16] + struct.pack(">II", width, height) + _PNG_1X1[24:]
+
+
+_PNG_9X16 = _png(9, 16)
+
+
 def _cut() -> Cut:
     version = CutVersion(
         visual_prompt="스마트폰 화면에 AI 채팅창이 표시된 장면",
@@ -51,13 +59,14 @@ def _cut() -> Cut:
 class RecordingImageProvider:
     name = "fake_codex_image"
 
-    def __init__(self) -> None:
+    def __init__(self, content: bytes = _PNG_9X16) -> None:
         self.requests: list[ImageGenerationRequest] = []
+        self.content = content
 
     def generate(self, request: ImageGenerationRequest) -> ImageGenerationResponse:
         self.requests.append(request)
         return ImageGenerationResponse(
-            content=_PNG_1X1,
+            content=self.content,
             media_type="image/png",
             provider=self.name,
             model=request.model_name,
@@ -95,6 +104,22 @@ def test_attach_generated_cut_visual_persists_provider_png_without_svg(tmp_path:
     assert not list((tmp_path / "assets" / "generated").glob("*.svg"))
 
 
+def test_attach_generated_cut_visual_rejects_the_wrong_output_aspect_ratio(tmp_path: Path) -> None:
+    project = Project(title="비율 검증 테스트")
+    cut = _cut()
+    project.scenes = [Scene(order=1, title="씬 1", cuts=[cut])]
+
+    with pytest.raises(ValueError, match="9:16"):
+        attach_generated_cut_visual(
+            project,
+            cut,
+            tmp_path / "assets",
+            content=_png(1536, 1024),
+            media_type="image/png",
+            expected_aspect_ratio="9:16",
+        )
+
+
 def test_cut_regeneration_uses_image_provider_and_stores_png(tmp_path: Path) -> None:
     store = ProjectStore(tmp_path)
     project = Project(title="워커 이미지 테스트")
@@ -126,8 +151,33 @@ def test_cut_regeneration_uses_image_provider_and_stores_png(tmp_path: Path) -> 
     assert stored_cut.media_asset_id is not None
     asset = next(item for item in stored.assets if item.id == stored_cut.media_asset_id)
     assert asset.filename.endswith(".png")
-    assert (tmp_path / "projects" / str(project.id) / asset.relative_path).read_bytes() == _PNG_1X1
+    assert (tmp_path / "projects" / str(project.id) / asset.relative_path).read_bytes() == _PNG_9X16
     assert not list((tmp_path / "projects" / str(project.id) / "assets" / "generated").glob("*.svg"))
+
+
+def test_cut_regeneration_passes_the_project_output_aspect_ratio_to_the_provider(tmp_path: Path) -> None:
+    store = ProjectStore(tmp_path)
+    project = Project(title="카드뉴스 비율 테스트")
+    project.idea.draft.formats = ["card_news"]
+    cut = _cut()
+    project.scenes = [Scene(order=1, title="씬 1", cuts=[cut])]
+    store.save(project)
+    image_provider = RecordingImageProvider(content=_PNG_1X1)
+    job = QueuedJob(
+        project_id=project.id,
+        cut_id=cut.id,
+        kind="cut.regenerate",
+        idempotency_key="image-ratio-job-1",
+        payload={
+            "project_updated_at": project.updated_at.isoformat(),
+            "active_version_id": str(cut.active_version_id),
+            "options": {"image_only": True},
+        },
+    )
+
+    JobProcessor(store, AiGateway(primary=FakeTextProvider()), image_provider=image_provider)(job)
+
+    assert image_provider.requests[0].aspect_ratio == "1:1"
 
 
 def test_cut_regeneration_failure_is_persisted_on_the_cut(tmp_path: Path) -> None:

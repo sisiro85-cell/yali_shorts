@@ -191,6 +191,10 @@
   background: rgb(85 73 61 / 88%);
 }
 
+.design-cut-card__image-status--mismatch {
+  background: rgb(133 83 63 / 92%);
+}
+
 .design-cut-card__empty {
   display: grid;
   max-width: 180px;
@@ -379,6 +383,17 @@
   margin: 10px 0 0;
   color: var(--yali-danger);
   font-size: 12px;
+}
+
+.design-cut-card__ratio-warning {
+  margin: 10px 0 0;
+  padding: 9px 10px;
+  border: 1px solid #caa997;
+  border-radius: var(--yali-radius-sm);
+  background: #fbf1eb;
+  color: #85533f;
+  font-size: 11px;
+  line-height: 1.5;
 }
 
 .design-empty {

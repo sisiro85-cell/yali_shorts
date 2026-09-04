@@ -44,6 +44,14 @@ pwsh -File scripts\build-yali-exe.ps1
 
 실행 파일에 `/validate` 또는 `/stop` 인수를 전달하면 각각 실행환경 검증과 백그라운드 서비스 종료를 수행합니다.
 
+집이나 다른 Windows PC에서 바로 실행할 포터블 번들을 만들려면 다음 명령을 실행합니다. ZIP 안에는 소스, 현재 `storage` 프로젝트 데이터, Python·Node.js 실행 파일과 설치된 런타임 의존성이 함께 들어가며, 압축을 푼 뒤 루트의 `YaliShortformStudio.exe`를 더블클릭하면 됩니다. Codex 구독 인증은 포함하지 않으므로 집 PC에서 Codex CLI 로그인이 한 번 필요합니다.
+
+```powershell
+pwsh -File scripts\package-yali-home.ps1
+```
+
+생성된 파일은 `release\YaliShortformStudio-home-YYYYMMDD.zip`입니다. 자세한 사용법은 `docs\portable-bundle.md`를 참고하세요.
+
 Codex 연동 단계에서는 Codex CLI 로그인이 선행되어야 하며, 구독 인증은 로컬 MCP를 통해 처리합니다. `C:\프로그램\쇼츠참고자료`는 런타임 의존성이 아닙니다.
 
 ## 현재 구현 단계

@@ -1,18 +1,45 @@
 Option Explicit
 
 Dim fso, shell, root, pythonExe, npmExe, nodeExe, frontendDir, backendDir, renderWorkerDir, renderWorkerEntry, frontendViteEntry, storageDir, pidFile
+Dim runtimeDir, runtimePythonExe, runtimeNodeDir, runtimeNodeExe, runtimeNpmExe, inheritedPath
 Set fso = CreateObject("Scripting.FileSystemObject")
 Set shell = CreateObject("WScript.Shell")
 
 root = fso.GetParentFolderName(fso.GetParentFolderName(WScript.ScriptFullName))
 shell.CurrentDirectory = root
 
-pythonExe = fso.BuildPath(root, ".venv\Scripts\python.exe")
-If Not fso.FileExists(pythonExe) Then
-    pythonExe = "python.exe"
+runtimeDir = fso.BuildPath(root, "runtime")
+runtimePythonExe = fso.BuildPath(runtimeDir, "python\python.exe")
+runtimeNodeDir = fso.BuildPath(runtimeDir, "node")
+runtimeNodeExe = fso.BuildPath(runtimeNodeDir, "node.exe")
+runtimeNpmExe = fso.BuildPath(runtimeNodeDir, "npm.cmd")
+
+If fso.FileExists(runtimePythonExe) Then
+    pythonExe = runtimePythonExe
+Else
+    pythonExe = fso.BuildPath(root, ".venv\Scripts\python.exe")
+    If Not fso.FileExists(pythonExe) Then
+        pythonExe = "python.exe"
+    End If
 End If
-npmExe = "npm.cmd"
-nodeExe = "node.exe"
+
+' A portable bundle carries its own Node runtime.  The PATH fallback keeps
+' the repository usable for development when the runtime folder is absent.
+If fso.FileExists(runtimeNodeExe) Then
+    inheritedPath = shell.Environment("PROCESS")("Path")
+    shell.Environment("PROCESS")("Path") = runtimeNodeDir & ";" & inheritedPath
+    nodeExe = runtimeNodeExe
+Else
+    nodeExe = FindOnPath("node.exe")
+    If Len(nodeExe) = 0 Then nodeExe = "node.exe"
+End If
+
+If fso.FileExists(runtimeNpmExe) Then
+    npmExe = runtimeNpmExe
+Else
+    npmExe = FindOnPath("npm.cmd")
+    If Len(npmExe) = 0 Then npmExe = "npm.cmd"
+End If
 frontendDir = fso.BuildPath(root, "frontend")
 backendDir = fso.BuildPath(root, "backend")
 renderWorkerDir = fso.BuildPath(root, "render-worker")
@@ -44,11 +71,11 @@ If WScript.Arguments.Count > 0 Then
             WScript.Echo "Python was not found. Create .venv or add python.exe to PATH."
             WScript.Quit 1
         End If
-        If FindOnPath("node.exe") = "" Then
+        If Not fso.FileExists(nodeExe) And FindOnPath("node.exe") = "" Then
             WScript.Echo "Node.js was not found. Add node.exe to PATH."
             WScript.Quit 1
         End If
-        If FindOnPath("npm.cmd") = "" Then
+        If Not fso.FileExists(npmExe) And FindOnPath("npm.cmd") = "" Then
             WScript.Echo "npm was not found. Add npm.cmd to PATH."
             WScript.Quit 1
         End If

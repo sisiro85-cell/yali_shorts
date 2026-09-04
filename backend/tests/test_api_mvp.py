@@ -259,7 +259,7 @@ def test_script_edit_keeps_field_range_validation_on_request_model(tmp_path: Pat
     assert after.json()["active_version"]["id"] == first["id"]
 
 
-def test_cut_generation_creates_distinct_visual_assets_instead_of_reusing_a_reference(tmp_path: Path) -> None:
+def test_cut_generation_keeps_reference_assets_separate_and_defers_image_generation(tmp_path: Path) -> None:
     client, project = _client(tmp_path)
     stored = ProjectStore(tmp_path).get(project.id)
     asset = MediaAsset(
@@ -282,16 +282,10 @@ def test_cut_generation_creates_distinct_visual_assets_instead_of_reusing_a_refe
         for scene in cuts.json()["scenes"]
         for cut in scene["cuts"]
     ]
-    assert len(cut_ids) == len(set(cut_ids))
-    assert all(asset_id != str(asset.id) for asset_id in cut_ids)
+    assert cut_ids == [None, None]
     stored = ProjectStore(tmp_path).get(project.id)
-    generated_ids = {UUID(value) for value in cut_ids}
-    generated_assets = [item for item in stored.assets if item.id in generated_ids]
-    assert len(generated_assets) == len(cut_ids)
-    assert all(
-        (tmp_path / "projects" / str(project.id) / item.relative_path).is_file()
-        for item in generated_assets
-    )
+    assert [item.id for item in stored.assets] == [asset.id]
+    assert not list((tmp_path / "projects" / str(project.id) / "assets" / "generated").glob("*.svg"))
 
 
 def test_cut_regeneration_creates_a_new_version_and_lock_still_wins(tmp_path: Path) -> None:

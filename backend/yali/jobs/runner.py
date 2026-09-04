@@ -94,7 +94,12 @@ class JobRunner:
             current = self.queue.get(job_id)
             if current.status in {"completed", "cancelled", "failed"}:
                 return
-            safe_error = f"{error.__class__.__name__}: 작업을 처리하지 못했습니다."
+            public_message = getattr(error, "public_message", None)
+            safe_error = (
+                public_message
+                if isinstance(public_message, str) and public_message.strip()
+                else f"{error.__class__.__name__}: 작업을 처리하지 못했습니다."
+            )
             self.queue.set_status(
                 job_id,
                 status="failed",

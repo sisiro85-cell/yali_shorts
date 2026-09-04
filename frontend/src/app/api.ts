@@ -137,7 +137,9 @@ export interface CutBoardCut {
   versions: CutVersion[];
 }
 
-export type CutRegenerationOptions = Partial<Pick<CutBoardCut, "visual_prompt" | "narration_text" | "subtitle" | "motion_preset">>;
+export type CutRegenerationOptions = Partial<Pick<CutBoardCut, "visual_prompt" | "narration_text" | "subtitle" | "motion_preset">> & {
+  image_only?: boolean;
+};
 
 export interface CutLockResponse {
   cut_id: string;

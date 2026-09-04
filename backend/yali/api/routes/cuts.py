@@ -22,7 +22,6 @@ from yali.domain.enums import ProjectStage
 from yali.domain.models import Cut, CutVersion, Project, Scene
 from yali.jobs.models import JobAccepted
 from yali.jobs.queue import PersistentJobQueue
-from yali.media.generator import GeneratedCutVisual, attach_generated_cut_visual
 from yali.storage.project_store import CutNotFoundError, ProjectStore
 
 router = APIRouter(prefix="/projects/{project_id}/cuts", tags=["cuts"])
@@ -30,6 +29,7 @@ router = APIRouter(prefix="/projects/{project_id}/cuts", tags=["cuts"])
 
 class RegenerateCutRequest(RegenerateOptions):
     idempotency_key: str | None = Field(default=None, min_length=1, max_length=200)
+    image_only: bool = False
 
 
 class CutLockResponse(BaseModel):
@@ -126,12 +126,7 @@ def generate_cut_plan(
         source_script_version_id=script.id,
     )
     project = _with_stage(project, ProjectStage.CUTS)
-    generated_visuals = _attach_generated_visuals(project, store)
-    try:
-        store.update(project)
-    except Exception:
-        _discard_generated_visuals(generated_visuals)
-        raise
+    store.update(project)
     return _board_response(project)
 
 
@@ -149,18 +144,11 @@ def apply_cut_regeneration_options(
     )
     if cut is None:
         raise CutNotFoundError(f"Cut not found in project {project_id}: {cut_id}")
-    options = RegenerateOptions.model_validate(request.model_dump(exclude={"idempotency_key"}))
-    apply_cut_regeneration(cut, options)
-    generated_visuals = (
-        _attach_generated_visuals(project, store, only_cut_id=cut_id)
-        if options.visual_prompt is not None or cut.media_asset_id is None
-        else []
+    options = RegenerateOptions.model_validate(
+        request.model_dump(exclude={"idempotency_key", "image_only"})
     )
-    try:
-        store.update(project)
-    except Exception:
-        _discard_generated_visuals(generated_visuals)
-        raise
+    apply_cut_regeneration(cut, options)
+    store.update(project)
     return CutResponse.from_cut(cut)
 
 
@@ -253,34 +241,3 @@ def _with_stage(project: Project, stage: ProjectStage) -> Project:
     payload["status"] = stage
     payload["stage"] = stage
     return Project.model_validate(payload)
-
-
-def _attach_generated_visuals(
-    project: Project,
-    store: ProjectStore,
-    *,
-    only_cut_id: UUID | None = None,
-) -> list[GeneratedCutVisual]:
-    visuals: list[GeneratedCutVisual] = []
-    try:
-        for scene in project.scenes:
-            for cut in scene.cuts:
-                if only_cut_id is not None and cut.id != only_cut_id:
-                    continue
-                visuals.append(
-                    attach_generated_cut_visual(
-                        project,
-                        cut,
-                        store.projects_root / str(project.id) / "assets",
-                    )
-                )
-    except Exception:
-        _discard_generated_visuals(visuals)
-        raise
-    return visuals
-
-
-def _discard_generated_visuals(visuals: list[GeneratedCutVisual]) -> None:
-    for visual in visuals:
-        if visual.created:
-            visual.path.unlink(missing_ok=True)

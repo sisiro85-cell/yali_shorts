@@ -5,12 +5,13 @@ from collections.abc import Mapping
 from uuid import UUID
 
 from yali.ai.gateway import AiGateway
-from yali.ai.protocols import Operation
+from yali.ai.protocols import GenerationMetadata, ImageGenerationRequest, ImageProvider, Operation
 from yali.content.service import apply_cut_regeneration
 from yali.domain.commands import RegenerateOptions
-from yali.domain.models import IdeaDraft, IdeaVersion
+from yali.domain.models import IdeaDraft, IdeaVersion, Project
 from yali.jobs.models import QueuedJob
 from yali.jobs.queue import JobNotFoundError, PersistentJobQueue
+from yali.ai.providers.codex_image import CodexImageError
 from yali.media.generator import GeneratedCutVisual, attach_generated_cut_visual
 from yali.media.render_client import RenderWorkerClient
 from yali.rendering.manifest import OutputManifest
@@ -19,6 +20,10 @@ from yali.storage.project_store import CutNotFoundError, ProjectRevisionConflict
 
 class JobProcessingError(RuntimeError):
     """Raised when a queued job cannot be handled by the MVP processor."""
+
+    def __init__(self, message: str, *, public_message: str | None = None) -> None:
+        super().__init__(message)
+        self.public_message = public_message
 
 
 class JobProcessor:
@@ -29,11 +34,13 @@ class JobProcessor:
         store: ProjectStore,
         gateway: AiGateway,
         *,
+        image_provider: ImageProvider | None = None,
         queue: PersistentJobQueue | None = None,
         render_client: RenderWorkerClient | None = None,
     ) -> None:
         self.store = store
         self.gateway = gateway
+        self.image_provider = image_provider
         self.queue = queue
         self.render_client = render_client
 
@@ -110,31 +117,36 @@ class JobProcessor:
         current_active_version_id = str(cut.active_version_id) if cut.active_version_id else None
         if queued_active_version_id != current_active_version_id:
             raise JobProcessingError("Cut regeneration request is stale") from None
-        options = RegenerateOptions.model_validate(job.payload.get("options", {}))
+        raw_options = job.payload.get("options", {})
+        image_only = isinstance(raw_options, Mapping) and raw_options.get("image_only") is True
+        options = RegenerateOptions.model_validate(raw_options)
         expected_revision = queued_revision or project.updated_at
-        result = self.gateway.generate(
-            Operation.REGENERATE_CUT,
-            {
-                "cut": {
-                    "id": str(cut.id),
-                    "order": cut.order,
-                    "title": cut.title,
-                    "duration_ms": cut.duration_ms,
-                    "visual_prompt": cut.visual_prompt,
-                    "narration_text": cut.narration_text,
-                    "subtitle": cut.subtitle,
-                    "motion_preset": cut.motion_preset,
+        result_data: Mapping[str, object] = {}
+        if not image_only:
+            result = self.gateway.generate(
+                Operation.REGENERATE_CUT,
+                {
+                    "cut": {
+                        "id": str(cut.id),
+                        "order": cut.order,
+                        "title": cut.title,
+                        "duration_ms": cut.duration_ms,
+                        "visual_prompt": cut.visual_prompt,
+                        "narration_text": cut.narration_text,
+                        "subtitle": cut.subtitle,
+                        "motion_preset": cut.motion_preset,
+                    },
+                    "options": options.model_dump(mode="json", exclude_none=True),
                 },
-                "options": options.model_dump(mode="json", exclude_none=True),
-            },
-            project_id=str(project.id),
-            cut_id=str(cut.id),
-            request_id=str(job.id),
-        )
+                project_id=str(project.id),
+                cut_id=str(cut.id),
+                request_id=str(job.id),
+            )
+            result_data = result.data
         if self._job_is_cancelled(job.id):
             return
 
-        generated = result.data.get("cut")
+        generated = result_data.get("cut")
         generated_options = _generated_regeneration_options(generated)
         merged_options = RegenerateOptions(
             visual_prompt=options.visual_prompt if options.visual_prompt is not None else generated_options.visual_prompt,
@@ -160,14 +172,53 @@ class JobProcessor:
             return
         apply_cut_regeneration(current_cut, merged_options)
         generated_visuals: list[GeneratedCutVisual] = []
-        if merged_options.visual_prompt is not None or current_cut.media_asset_id is None:
-            generated_visuals.append(
-                attach_generated_cut_visual(
-                    current,
-                    current_cut,
-                    self.store.projects_root / str(current.id) / "assets",
+        should_generate_image = (
+            image_only
+            or merged_options.visual_prompt is not None
+            or current_cut.media_asset_id is None
+        )
+        if should_generate_image:
+            try:
+                if self.image_provider is None:
+                    raise JobProcessingError(
+                        "Cut image provider is not configured",
+                        public_message="이미지 생성 Provider가 설정되지 않았습니다.",
+                    )
+                model_name = _provider_model(self.image_provider)
+                response = self.image_provider.generate(
+                    ImageGenerationRequest(
+                        prompt=current_cut.visual_prompt,
+                        model_name=model_name,
+                        metadata=GenerationMetadata(
+                            request_id=str(job.id),
+                            project_id=str(current.id),
+                            cut_id=str(current_cut.id),
+                            operation=Operation.REGENERATE_CUT,
+                            model=model_name,
+                        ),
+                    )
                 )
-            )
+                generated_visuals.append(
+                    attach_generated_cut_visual(
+                        current,
+                        current_cut,
+                        self.store.projects_root / str(current.id) / "assets",
+                        content=response.content,
+                        media_type=response.media_type,
+                    )
+                )
+            except JobProcessingError:
+                self._mark_cut_failed(
+                    current,
+                    expected_revision,
+                    cut_id,
+                    "이미지 생성 Provider가 설정되지 않았습니다.",
+                )
+                raise
+            except Exception as error:
+                message = _image_generation_error(error)
+                self._mark_cut_failed(current, expected_revision, cut_id, message)
+                raise JobProcessingError("Cut image generation failed", public_message=message) from None
         try:
             self.store.update_if_unchanged(
                 current,
@@ -256,6 +307,26 @@ class JobProcessor:
             raise JobProcessingError("Job queue is required for failure recovery") from None
         return self.queue.get(job_id).project_id
 
+    def _mark_cut_failed(
+        self,
+        project: Project,
+        expected_revision: datetime,
+        cut_id: UUID,
+        message: str,
+    ) -> None:
+        try:
+            cut = next(
+                (item for scene in project.scenes for item in scene.cuts if item.id == cut_id),
+                None,
+            )
+            if cut is None or cut.locked:
+                return
+            cut.status = "failed"
+            cut.error = message
+            self.store.update_if_unchanged(project, expected_updated_at=expected_revision)
+        except Exception:
+            return
+
 
 def _text(value: object, fallback: str) -> str:
     if isinstance(value, str) and value.strip():
@@ -282,6 +353,17 @@ def _render_quality(value: object) -> str:
     if value in {"draft", "standard", "high"}:
         return str(value)
     return "draft"
+
+
+def _provider_model(provider: ImageProvider) -> str | None:
+    model = getattr(provider, "model", None)
+    return model.strip() or None if isinstance(model, str) else None
+
+
+def _image_generation_error(error: Exception) -> str:
+    if isinstance(error, CodexImageError) and str(error).strip():
+        return f"이미지 생성에 실패했습니다. {str(error).strip()}"[:500]
+    return "이미지 생성에 실패했습니다. Codex ImageGen 결과를 확인해 주세요."
 
 
 def _generated_regeneration_options(value: object) -> RegenerateOptions:

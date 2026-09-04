@@ -60,6 +60,7 @@ def _process_environment(cwd: Path) -> dict[str, str]:
         environment.setdefault("CODEX_HOME", str(Path(profile) / ".codex"))
         if os.name == "nt":
             environment.setdefault("HOME", profile)
+    environment.setdefault("CODEX_HOME", str(Path.home() / ".codex"))
     environment.setdefault("PWD", str(cwd))
     return environment
 

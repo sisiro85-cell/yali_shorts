@@ -344,7 +344,10 @@ export function ScriptPage({ projectId, stage = "script" }: { projectId: string;
     setError("");
     setNotice("");
     try {
-      const accepted = await apiClient.regenerateCut(projectId, cutId, options);
+      const requestOptions: CutRegenerationOptions = stage === "design"
+        ? { ...options, image_only: true }
+        : options;
+      const accepted = await apiClient.regenerateCut(projectId, cutId, requestOptions);
       setCutJob({ jobId: accepted.job_id, cutId, cutOrder: cut.order });
       setNotice(`컷 ${cut.order} ${stage === "design" ? "이미지 생성" : "재생성"} 요청을 작업 큐에 등록했습니다.`);
     } catch (reason: unknown) {
@@ -373,7 +376,7 @@ export function ScriptPage({ projectId, stage = "script" }: { projectId: string;
         if (!isCurrentOperation()) return;
         setBulkCutId(cut.id);
         setNotice(`컷 ${cut.order} 이미지 생성 중입니다. (${index + 1}/${cuts.length})`);
-        const accepted = await apiClient.regenerateCut(projectId, cut.id);
+        const accepted = await apiClient.regenerateCut(projectId, cut.id, { image_only: true });
         if (!isCurrentOperation()) return;
         const job = await waitForJobCompletion(projectId, accepted.job_id, isCurrentOperation);
         if (!job) return;

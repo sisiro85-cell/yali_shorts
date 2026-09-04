@@ -79,6 +79,20 @@ test("home shell reflows below desktop width without overlay or clipped navigati
   await expect(page.getByRole("link", { name: "아이디어" })).toHaveCount(1);
 });
 
+test("recent project continue action navigates to the current workflow stage", async ({ page }) => {
+  const designProject = { ...project, stage: "design", status: "design", cut_count: 7, progress: 75 };
+  await page.route("**/api/projects", (route) => route.fulfill({ json: { projects: [designProject] } }));
+  await page.route("**/api/jobs", (route) => route.fulfill({ json: { jobs: [] } }));
+  await page.route(`**/api/projects/${designProject.id}/cuts`, (route) => route.fulfill({
+    json: { project_id: designProject.id, project_title: designProject.title, stage: "design", script_version_id: null, stale: false, scenes: [] },
+  }));
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "이어서 작업" }).first().click();
+
+  await expect(page).toHaveURL(`/projects/${designProject.id}/design`);
+});
+
 test("project picker opens the saved projects and moves to the selected workflow stage", async ({ page }) => {
   const secondProject = { ...project, id: "536b165a-c332-4319-826e-737030e2035b", title: "다른 프로젝트", status: "design", stage: "design", cut_count: 8, progress: 70 };
   await page.route("**/api/projects", (route) => route.fulfill({ json: { projects: [project, secondProject] } }));

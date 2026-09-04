@@ -33,6 +33,7 @@ const ideaProject = {
 };
 
 beforeEach(() => {
+  window.history.replaceState({}, "", "/");
   vi.useFakeTimers();
   vi.setSystemTime(new Date("2026-09-03T12:00:00Z"));
   vi.stubGlobal("fetch", vi.fn((input: string) => Promise.resolve(new Response(JSON.stringify(input.endsWith("/projects") ? { projects: [project, secondProject, ideaProject] } : { jobs: [] }), { status: 200 }))));
@@ -75,21 +76,11 @@ test("collapses the context layout and provides a keyboard-accessible reopen con
   expect(screen.getByRole("complementary", { name: "작업 컨텍스트" })).toHaveAttribute("aria-hidden", "false");
 });
 
-test("uses the selected project and the current locale date in today work", async () => {
+test("continues a recent project at its current workflow stage", async () => {
   await renderApp();
 
   fireEvent.click(screen.getAllByRole("button", { name: /이어서 작업/ })[1]);
-  expect(screen.getByRole("region", { name: "오늘 작업" })).toHaveTextContent("두 번째 프로젝트");
-  expect(screen.getByText("9월 3일 (목)")).toHaveAttribute("dateTime", "2026-09-03");
-  const previews = screen.getAllByLabelText("두 번째 프로젝트 원본 미디어");
-  expect(previews).toHaveLength(2);
-  for (const preview of previews) {
-    expect(preview.tagName).toBe("VIDEO");
-    expect(preview).toHaveAttribute("src", "http://127.0.0.1:8000/api/projects/demo/assets/second/preview");
-    expect(preview).toHaveAttribute("preload", "metadata");
-    expect(preview).toHaveStyle({ filter: "none", opacity: "1", objectFit: "contain" });
-  }
-  expect(previews[1]).toHaveAttribute("controls");
+  expect(window.location.pathname).toBe(`/projects/${secondProject.id}/design`);
 });
 
 test("does not mark future checklist steps complete for an idea-stage project", async () => {

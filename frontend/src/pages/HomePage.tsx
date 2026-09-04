@@ -23,6 +23,11 @@ export function HomePage() {
   const projectName = selectedProject?.title ?? "프로젝트 선택"; const stage = selectedProject?.stage ?? "idea";
   const selectedProjectPath = selectedProject ? projectStagePath(selectedProject.id, selectedProject.stage) : "/";
 
+  function handleRecentProjectAction(project: ProjectSummary) {
+    setSelectedProject(project);
+    if (project.stage !== "idea") navigateTo(projectStagePath(project.id, project.stage));
+  }
+
   async function handleCreateProject() {
     setIsCreatingProject(true);
     setError(null);
@@ -79,7 +84,7 @@ export function HomePage() {
         {isLoading ? <p className="home-state" role="status">프로젝트를 불러오는 중입니다…</p> : error ? <p className="home-state home-state--error" role="alert">{error}</p> : <>
           <section className="home-section" aria-labelledby="recent-projects">
             <div className="section-heading"><h2 id="recent-projects">최근 프로젝트</h2><button type="button" className="text-button">전체 보기</button></div>
-            {projects.length ? <div className="project-list">{projects.slice(0, 3).map((project) => <ProjectRow project={project} selected={project.id === selectedProject?.id} onSelect={setSelectedProject} onDelete={setProjectToDelete} key={project.id} />)}</div> : <p className="home-state">최근 프로젝트가 없습니다. 새 프로젝트로 시작해 보세요.</p>}
+            {projects.length ? <div className="project-list">{projects.slice(0, 3).map((project) => <ProjectRow project={project} selected={project.id === selectedProject?.id} onSelect={handleRecentProjectAction} onDelete={setProjectToDelete} key={project.id} />)}</div> : <p className="home-state">최근 프로젝트가 없습니다. 새 프로젝트로 시작해 보세요.</p>}
           </section>
           {selectedProject && <section className="home-section continue-work" aria-labelledby="continue-work">
             <div className="section-heading"><h2 id="continue-work">이어갈 작업</h2><button type="button" className="text-button">전체 보기</button></div>

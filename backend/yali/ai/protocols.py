@@ -50,6 +50,21 @@ class TextGenerationResponse:
 
 
 @dataclass(frozen=True, slots=True)
+class ImageGenerationRequest:
+    prompt: str
+    model_name: str | None
+    metadata: GenerationMetadata
+
+
+@dataclass(frozen=True, slots=True)
+class ImageGenerationResponse:
+    content: bytes
+    media_type: str
+    provider: str
+    model: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class ProviderHealth:
     provider: str
     available: bool
@@ -62,5 +77,14 @@ class TextProvider(Protocol):
     name: str
 
     def generate(self, request: TextGenerationRequest) -> TextGenerationResponse: ...
+
+    def health(self) -> ProviderHealth: ...
+
+
+@runtime_checkable
+class ImageProvider(Protocol):
+    name: str
+
+    def generate(self, request: ImageGenerationRequest) -> ImageGenerationResponse: ...
 
     def health(self) -> ProviderHealth: ...

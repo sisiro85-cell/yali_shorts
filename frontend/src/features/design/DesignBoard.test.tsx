@@ -103,6 +103,27 @@ test("shows the image action before the detailed settings", () => {
   expect(action.compareDocumentPosition(settings!)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
 });
 
+test("provides a top action for generating every missing cut image", () => {
+  const onGenerateAll = vi.fn();
+
+  render(
+    <DesignBoard
+      projectId="project-1"
+      data={board}
+      isLoading={false}
+      error=""
+      onRegenerate={vi.fn()}
+      onGenerateAll={onGenerateAll}
+      onContinueToOutput={vi.fn()}
+      onBackToCuts={vi.fn()}
+    />,
+  );
+
+  fireEvent.click(screen.getByRole("button", { name: "이미지 전체 생성" }));
+
+  expect(onGenerateAll).toHaveBeenCalledWith(["cut-2"]);
+});
+
 test("places every cut in one grid while keeping its scene context", () => {
   const multiSceneBoard: CutBoardData = {
     ...board,

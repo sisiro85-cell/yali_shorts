@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { FileText, Lightbulb, Sparkle } from "@phosphor-icons/react";
-import { apiClient, type CutBoardData, type CutBoardCut, type CutRegenerationOptions, type IdeaPageData, type ScriptPageData, type ScriptVersionDraft, type WorkflowStage } from "../app/api";
+import { apiClient, type CutBoardData, type CutBoardCut, type CutRegenerationOptions, type IdeaPageData, type JobSummary, type ScriptPageData, type ScriptVersionDraft, type WorkflowStage } from "../app/api";
 import { navigateTo, projectIdeaPath, projectStagePath } from "../app/navigation";
 import { AppShell } from "../components/layout/AppShell";
 import { CutBoard } from "../features/cuts/CutBoard";
@@ -91,6 +91,17 @@ function replaceCut(board: CutBoardData, cutId: string, update: (cut: CutBoardCu
   };
 }
 
+async function waitForJobCompletion(projectId: string, jobId: string, isCurrentOperation: () => boolean): Promise<JobSummary | null> {
+  while (isCurrentOperation()) {
+    const jobs = await apiClient.listJobs(projectId);
+    if (!isCurrentOperation()) return null;
+    const job = jobs.find((item) => item.id === jobId);
+    if (job && job.status !== "queued" && job.status !== "running") return job;
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 1000));
+  }
+  return null;
+}
+
 function StagePlaceholder({ projectId, stage, data }: { projectId: string; stage: StagePageStage; data: IdeaPageData | null }) {
   const stageLabel = STAGE_LABELS[stage];
   return (
@@ -126,6 +137,9 @@ export function ScriptPage({ projectId, stage = "script" }: { projectId: string;
   const [isContinuingToCuts, setIsContinuingToCuts] = useState(false);
   const [isContinuingToDesign, setIsContinuingToDesign] = useState(false);
   const [isContinuingToOutput, setIsContinuingToOutput] = useState(false);
+  const [isGeneratingAllImages, setIsGeneratingAllImages] = useState(false);
+  const [bulkImageProgress, setBulkImageProgress] = useState<{ completed: number; total: number } | null>(null);
+  const [bulkCutId, setBulkCutId] = useState<string | null>(null);
   const [activeCutAction, setActiveCutAction] = useState<{ cutId: string; kind: CutAction } | null>(null);
   const [cutJob, setCutJob] = useState<{ jobId: string; cutId: string; cutOrder: number } | null>(null);
   const pageOperationSequence = useRef(0);
@@ -137,6 +151,9 @@ export function ScriptPage({ projectId, stage = "script" }: { projectId: string;
     setIsContinuingToCuts(false);
     setIsContinuingToDesign(false);
     setIsContinuingToOutput(false);
+    setIsGeneratingAllImages(false);
+    setBulkImageProgress(null);
+    setBulkCutId(null);
     setActiveCutAction(null);
     setCutJob(null);
     setError("");
@@ -337,6 +354,50 @@ export function ScriptPage({ projectId, stage = "script" }: { projectId: string;
     }
   }
 
+  async function handleGenerateAllImages(cutIds: string[]) {
+    if (isGeneratingAllImages) return;
+    const cuts = Array.from(new Set(cutIds))
+      .map((cutId) => findCut(cutData, cutId))
+      .filter((cut): cut is CutBoardCut => Boolean(cut));
+    if (cuts.length === 0) return;
+
+    const requestSequence = pageOperationSequence.current + 1;
+    pageOperationSequence.current = requestSequence;
+    const isCurrentOperation = () => pageOperationSequence.current === requestSequence;
+    setIsGeneratingAllImages(true);
+    setBulkImageProgress({ completed: 0, total: cuts.length });
+    setError("");
+    setNotice("");
+    try {
+      for (const [index, cut] of cuts.entries()) {
+        if (!isCurrentOperation()) return;
+        setBulkCutId(cut.id);
+        setNotice(`컷 ${cut.order} 이미지 생성 중입니다. (${index + 1}/${cuts.length})`);
+        const accepted = await apiClient.regenerateCut(projectId, cut.id);
+        if (!isCurrentOperation()) return;
+        const job = await waitForJobCompletion(projectId, accepted.job_id, isCurrentOperation);
+        if (!job) return;
+        if (job.status !== "completed") {
+          throw new Error(job.error ?? `컷 ${cut.order} 이미지 생성에 실패했습니다.`);
+        }
+        setBulkImageProgress({ completed: index + 1, total: cuts.length });
+      }
+
+      const next = await apiClient.getCutBoard(projectId);
+      if (!isCurrentOperation()) return;
+      setCutData(next);
+      setNotice("전체 이미지 생성을 완료했습니다.");
+    } catch (reason: unknown) {
+      if (isCurrentOperation()) setError(reason instanceof Error ? reason.message : "전체 이미지 생성에 실패했습니다.");
+    } finally {
+      if (isCurrentOperation()) {
+        setIsGeneratingAllImages(false);
+        setBulkCutId(null);
+        setBulkImageProgress(null);
+      }
+    }
+  }
+
   async function handleToggleCutLock(cutId: string, nextLocked: boolean) {
     const cut = findCut(cutData, cutId);
     if (!cut) return;
@@ -376,8 +437,8 @@ export function ScriptPage({ projectId, stage = "script" }: { projectId: string;
 
   const projectTitle = (stage === "script" ? scriptData?.project_title : stage === "cuts" || stage === "design" ? cutData?.project_title : ideaData?.project_title) ?? "프로젝트";
   const currentStage: WorkflowStage = stage;
-  const busyCutId = cutJob?.cutId ?? activeCutAction?.cutId ?? null;
-  const busyCutAction: CutAction | null = cutJob ? "regenerate" : activeCutAction?.kind ?? null;
+  const busyCutId = bulkCutId ?? cutJob?.cutId ?? activeCutAction?.cutId ?? null;
+  const busyCutAction: CutAction | null = bulkCutId ? "regenerate" : cutJob ? "regenerate" : activeCutAction?.kind ?? null;
 
   return (
     <AppShell
@@ -393,7 +454,7 @@ export function ScriptPage({ projectId, stage = "script" }: { projectId: string;
       quickStart={null}
       showQuickStart={false}
     >
-      {stage === "script" ? <ScriptEditor data={scriptData?.active_version ?? null} versions={scriptData?.versions} isLoading={isLoading} isGenerating={isGenerating} isSaving={isSaving} isActivating={isActivating} isContinuing={isContinuingToCuts} error={error} notice={notice} onGenerate={handleGenerate} onSave={handleSave} onActivate={handleActivate} onContinueToCuts={handleContinueToCuts} /> : stage === "cuts" ? <CutBoard data={cutData} isLoading={isLoading} isGenerating={isGenerating} isContinuing={isContinuingToDesign} error={error} notice={notice} onGenerate={handleGenerateCuts} onBackToIdeas={() => navigateTo(projectIdeaPath(projectId))} onContinueToDesign={handleContinueToDesign} busyCutId={busyCutId} busyCutAction={busyCutAction} onRegenerateCut={handleRegenerateCut} onToggleCutLock={handleToggleCutLock} onActivateCutVersion={handleActivateCutVersion} /> : stage === "design" ? <DesignBoard projectId={projectId} data={cutData} isLoading={isLoading} error={error} notice={notice} busyCutId={busyCutId} busyCutAction={busyCutAction} onRegenerate={handleRegenerateCut} onBackToCuts={() => navigateTo(projectStagePath(projectId, "cuts"))} onContinueToOutput={handleContinueToOutput} isContinuing={isContinuingToOutput} /> : <StagePlaceholder projectId={projectId} stage={stage} data={ideaData} />}
+      {stage === "script" ? <ScriptEditor data={scriptData?.active_version ?? null} versions={scriptData?.versions} isLoading={isLoading} isGenerating={isGenerating} isSaving={isSaving} isActivating={isActivating} isContinuing={isContinuingToCuts} error={error} notice={notice} onGenerate={handleGenerate} onSave={handleSave} onActivate={handleActivate} onContinueToCuts={handleContinueToCuts} /> : stage === "cuts" ? <CutBoard data={cutData} isLoading={isLoading} isGenerating={isGenerating} isContinuing={isContinuingToDesign} error={error} notice={notice} onGenerate={handleGenerateCuts} onBackToIdeas={() => navigateTo(projectIdeaPath(projectId))} onContinueToDesign={handleContinueToDesign} busyCutId={busyCutId} busyCutAction={busyCutAction} onRegenerateCut={handleRegenerateCut} onToggleCutLock={handleToggleCutLock} onActivateCutVersion={handleActivateCutVersion} /> : stage === "design" ? <DesignBoard projectId={projectId} data={cutData} isLoading={isLoading} error={error} notice={notice} busyCutId={busyCutId} busyCutAction={busyCutAction} onRegenerate={handleRegenerateCut} onGenerateAll={handleGenerateAllImages} isGeneratingAll={isGeneratingAllImages} bulkProgress={bulkImageProgress} onBackToCuts={() => navigateTo(projectStagePath(projectId, "cuts"))} onContinueToOutput={handleContinueToOutput} isContinuing={isContinuingToOutput} /> : <StagePlaceholder projectId={projectId} stage={stage} data={ideaData} />}
     </AppShell>
   );
 }

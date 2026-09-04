@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 import type { CutBoardData, ScriptPageData } from "../app/api";
 import { ScriptPage } from "./ScriptPage";
@@ -215,4 +215,53 @@ test("loads the cut board and renders cut images on the design stage", async () 
   await waitFor(() => expect(screen.getByRole("heading", { name: "디자인" })).toBeVisible());
   expect(screen.getByRole("img", { name: "컷 1 디자인 컷 이미지" })).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "출력으로 이동" })).toBeEnabled();
+});
+
+test("generates every design image one cut at a time", async () => {
+  const designBoard = makeBoard("project-a", "프로젝트 A", "첫 번째 컷");
+  designBoard.stage = "design";
+  designBoard.scenes[0].cuts = [
+    designBoard.scenes[0].cuts[0],
+    { ...designBoard.scenes[0].cuts[0], id: "project-a-cut-2", order: 2, title: "두 번째 컷" },
+  ];
+  const completedBoard: CutBoardData = {
+    ...designBoard,
+    scenes: designBoard.scenes.map((scene) => ({
+      ...scene,
+      cuts: scene.cuts.map((cut) => ({ ...cut, media_asset_id: `${cut.id}-asset`, status: "ready" as const })),
+    })),
+  };
+  let boardReads = 0;
+  const regenerationRequests: string[] = [];
+
+  vi.stubGlobal(
+    "fetch",
+    vi.fn((input: string, init?: RequestInit) => {
+      if (input.endsWith("/projects/project-a/cuts") && !init?.method) {
+        boardReads += 1;
+        return Promise.resolve(makeJsonResponse(boardReads === 1 ? designBoard : completedBoard));
+      }
+      if (input.endsWith("/projects/project-a/cuts/project-a-cut/regenerate") && init?.method === "POST") {
+        regenerationRequests.push("project-a-cut");
+        return Promise.resolve(makeJsonResponse({ job_id: "design-job-1", cut_id: "project-a-cut", status: "queued" }, 202));
+      }
+      if (input.endsWith("/projects/project-a/cuts/project-a-cut-2/regenerate") && init?.method === "POST") {
+        regenerationRequests.push("project-a-cut-2");
+        return Promise.resolve(makeJsonResponse({ job_id: "design-job-2", cut_id: "project-a-cut-2", status: "queued" }, 202));
+      }
+      if (input.includes("/jobs?project_id=project-a")) {
+        const jobId = regenerationRequests.length === 1 ? "design-job-1" : "design-job-2";
+        return Promise.resolve(makeJsonResponse({ jobs: [{ id: jobId, project_id: "project-a", cut_id: regenerationRequests[regenerationRequests.length - 1], kind: "cut.regenerate", status: "completed", progress: 100, error: null, retry_count: 0 }] }));
+      }
+      throw new Error(`Unhandled fetch ${input} ${init?.method ?? "GET"}`);
+    }),
+  );
+
+  render(<ScriptPage projectId="project-a" stage="design" />);
+
+  await waitFor(() => expect(screen.getByRole("button", { name: "이미지 전체 생성" })).toBeVisible());
+  fireEvent.click(screen.getByRole("button", { name: "이미지 전체 생성" }));
+
+  await waitFor(() => expect(screen.getByText("전체 이미지 생성을 완료했습니다.")).toBeVisible());
+  expect(regenerationRequests).toEqual(["project-a-cut", "project-a-cut-2"]);
 });

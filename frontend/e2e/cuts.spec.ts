@@ -167,6 +167,47 @@ test("design stage renders the selected cut image and regenerates only that cut"
   await expect(page).toHaveURL(`/projects/${projectId}/output`);
 });
 
+test("design stage generates every missing image from the top action", async ({ page }) => {
+  const regeneratedBoard = {
+    ...generatedBoard,
+    stage: "design",
+    scenes: [{
+      ...generatedBoard.scenes[0],
+      cuts: [
+        generatedBoard.scenes[0].cuts[0],
+        { ...generatedBoard.scenes[0].cuts[1], media_asset_id: "asset-2", status: "ready" },
+      ],
+    }],
+  };
+  let hasRegenerated = false;
+  let regenerationRequests = 0;
+
+  await page.route(`**/api/projects/${projectId}/cuts`, async (route) => {
+    await route.fulfill({ json: hasRegenerated ? regeneratedBoard : generatedBoard });
+  });
+  await page.route(`**/api/projects/${projectId}/cuts/cut-2/regenerate`, async (route) => {
+    regenerationRequests += 1;
+    hasRegenerated = true;
+    await route.fulfill({
+      status: 202,
+      json: { job_id: "design-job-all-2", cut_id: "cut-2", status: "queued" },
+    });
+  });
+  await page.route(`**/api/jobs?project_id=${projectId}`, (route) => route.fulfill({
+    json: { jobs: [{ id: "design-job-all-2", project_id: projectId, cut_id: "cut-2", kind: "cut.regenerate", status: "completed", progress: 100, error: null, retry_count: 0 }] },
+  }));
+
+  await page.goto(`/projects/${projectId}/design`);
+
+  await expect(page.getByRole("button", { name: "이미지 전체 생성" })).toBeVisible();
+  await page.getByRole("button", { name: "이미지 전체 생성" }).click();
+
+  await expect(page.getByText("전체 이미지 생성을 완료했습니다.")).toBeVisible();
+  await expect(page.getByRole("img", { name: "컷 2 해결 방법 이미지" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "전체 이미지 재생성" })).toBeVisible();
+  expect(regenerationRequests).toBe(1);
+});
+
 test("cuts stage does not show a stale board as current", async ({ page }) => {
   await page.route(`**/api/projects/${projectId}/cuts`, (route) => route.fulfill({
     json: { ...generatedBoard, stale: true },

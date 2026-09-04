@@ -13,6 +13,9 @@ interface DesignBoardProps {
   busyCutId?: string | null;
   busyCutAction?: CutAction | null;
   onRegenerate: (cutId: string, options: CutRegenerationOptions) => void | Promise<void>;
+  onGenerateAll?: (cutIds: string[]) => void | Promise<void>;
+  isGeneratingAll?: boolean;
+  bulkProgress?: { completed: number; total: number } | null;
   onBackToCuts?: () => void;
   onContinueToOutput?: () => void | Promise<void>;
   isContinuing?: boolean;
@@ -149,13 +152,24 @@ function countReadyImages(data: CutBoardData | null) {
   return data?.scenes.reduce((total, scene) => total + scene.cuts.filter((cut) => Boolean(cut.media_asset_id)).length, 0) ?? 0;
 }
 
-export function DesignBoard({ projectId, data, isLoading = false, error, notice, busyCutId = null, busyCutAction = null, onRegenerate, onBackToCuts, onContinueToOutput, isContinuing = false }: DesignBoardProps) {
+export function DesignBoard({ projectId, data, isLoading = false, error, notice, busyCutId = null, busyCutAction = null, onRegenerate, onGenerateAll, isGeneratingAll = false, bulkProgress = null, onBackToCuts, onContinueToOutput, isContinuing = false }: DesignBoardProps) {
   const totalCuts = countCuts(data);
   const readyImages = countReadyImages(data);
   const hasCuts = totalCuts > 0;
   const isStale = data?.stale ?? false;
   const allImagesReady = hasCuts && readyImages === totalCuts;
-  const isBusy = Boolean(busyCutId) || isLoading;
+  const allCuts = data?.scenes.flatMap((scene) => scene.cuts) ?? [];
+  const imageGenerationTargets = allImagesReady
+    ? allCuts.filter((cut) => !cut.locked)
+    : allCuts.filter((cut) => !cut.media_asset_id && !cut.locked);
+  const isBusy = Boolean(busyCutId) || isLoading || isGeneratingAll;
+  const bulkActionLabel = isGeneratingAll
+    ? bulkProgress
+      ? `이미지 생성 중… ${bulkProgress.completed}/${bulkProgress.total}`
+      : "이미지 생성 중…"
+    : allImagesReady
+      ? "전체 이미지 재생성"
+      : "이미지 전체 생성";
 
   return (
     <section className="design-board" aria-labelledby="design-board-title" aria-busy={isBusy}>
@@ -166,9 +180,23 @@ export function DesignBoard({ projectId, data, isLoading = false, error, notice,
           <p>컷별 이미지를 확인하고, 마음에 들지 않는 컷만 다시 생성합니다.</p>
         </div>
         {data && !isStale ? (
-          <div className="design-board__progress" aria-label="이미지 생성 현황">
-            <strong>{readyImages}/{totalCuts}</strong>
-            <span>이미지 준비</span>
+          <div className="design-board__heading-actions">
+            <div className="design-board__progress" aria-label="이미지 생성 현황">
+              <strong>{readyImages}/{totalCuts}</strong>
+              <span>이미지 준비</span>
+            </div>
+            {hasCuts && onGenerateAll ? (
+              <button
+                className="button button--primary design-board__generate-all"
+                type="button"
+                onClick={() => void onGenerateAll(imageGenerationTargets.map((cut) => cut.id))}
+                disabled={imageGenerationTargets.length === 0 || isBusy}
+                aria-busy={isGeneratingAll}
+              >
+                <ArrowClockwise size={16} aria-hidden="true" />
+                {bulkActionLabel}
+              </button>
+            ) : null}
           </div>
         ) : null}
       </header>
@@ -194,7 +222,7 @@ export function DesignBoard({ projectId, data, isLoading = false, error, notice,
                 projectId={projectId}
                 scene={scene}
                 cut={cut}
-                isBusy={busyCutId === cut.id}
+                isBusy={isGeneratingAll || busyCutId === cut.id}
                 busyAction={busyCutId === cut.id ? busyCutAction : null}
                 onRegenerate={onRegenerate}
               />

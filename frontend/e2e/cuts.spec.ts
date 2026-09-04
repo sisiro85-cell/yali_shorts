@@ -123,11 +123,13 @@ test("design stage renders the selected cut image and regenerates only that cut"
   };
   let hasRegenerated = false;
   let projectPatch: unknown;
+  let regenerationPayload: Record<string, unknown> | undefined;
 
   await page.route(`**/api/projects/${projectId}/cuts`, async (route) => {
     await route.fulfill({ json: hasRegenerated ? regeneratedBoard : generatedBoard });
   });
   await page.route(`**/api/projects/${projectId}/cuts/cut-2/regenerate`, async (route) => {
+    regenerationPayload = (await route.request().postDataJSON()) as Record<string, unknown>;
     hasRegenerated = true;
     await route.fulfill({
       status: 202,
@@ -161,6 +163,7 @@ test("design stage renders the selected cut image and regenerates only that cut"
   await expect(page.getByRole("img", { name: "컷 2 해결 방법 이미지" })).toBeVisible();
   await expect(page.getByRole("button", { name: "출력으로 이동" })).toBeEnabled();
   await expect(page.getByText("컷 2 이미지 재생성을 완료했습니다.")).toBeVisible();
+  expect(regenerationPayload).toEqual({ image_only: true });
 
   await page.getByRole("button", { name: "출력으로 이동" }).click();
   expect(projectPatch).toEqual({ stage: "output", status: "output" });
@@ -181,12 +184,14 @@ test("design stage generates every missing image from the top action", async ({ 
   };
   let hasRegenerated = false;
   let regenerationRequests = 0;
+  let bulkPayload: Record<string, unknown> | undefined;
 
   await page.route(`**/api/projects/${projectId}/cuts`, async (route) => {
     await route.fulfill({ json: hasRegenerated ? regeneratedBoard : generatedBoard });
   });
   await page.route(`**/api/projects/${projectId}/cuts/cut-2/regenerate`, async (route) => {
     regenerationRequests += 1;
+    bulkPayload = (await route.request().postDataJSON()) as Record<string, unknown>;
     hasRegenerated = true;
     await route.fulfill({
       status: 202,
@@ -206,6 +211,7 @@ test("design stage generates every missing image from the top action", async ({ 
   await expect(page.getByRole("img", { name: "컷 2 해결 방법 이미지" })).toBeVisible();
   await expect(page.getByRole("button", { name: "전체 이미지 재생성" })).toBeVisible();
   expect(regenerationRequests).toBe(1);
+  expect(bulkPayload).toEqual({ image_only: true });
 });
 
 test("cuts stage does not show a stale board as current", async ({ page }) => {

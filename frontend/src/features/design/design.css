@@ -114,35 +114,6 @@
   margin-top: 24px;
 }
 
-.design-scene {
-  min-width: 0;
-  padding: 22px 22px 24px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--yali-radius-md);
-  background: var(--color-surface);
-}
-
-.design-scene__heading {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 16px;
-  padding-bottom: 14px;
-  border-bottom: 1px solid var(--color-border);
-}
-
-.design-scene__heading > div > span,
-.design-scene__heading > span {
-  color: var(--color-text-secondary);
-  font-size: 12px;
-}
-
-.design-scene__heading h2 {
-  margin: 4px 0 0;
-  font-size: 20px;
-  letter-spacing: -.04em;
-}
-
 .design-card-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -241,6 +212,23 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+}
+
+.design-cut-card__identity {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.design-cut-card__scene {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .design-cut-card__number {
@@ -449,9 +437,6 @@
     text-align: left;
   }
 
-  .design-scene {
-    padding: 20px 18px 22px;
-  }
 }
 
 @media (max-width: 560px) {

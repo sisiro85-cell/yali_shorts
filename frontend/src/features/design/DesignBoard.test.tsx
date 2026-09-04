@@ -103,6 +103,40 @@ test("shows the image action before the detailed settings", () => {
   expect(action.compareDocumentPosition(settings!)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
 });
 
+test("places every cut in one grid while keeping its scene context", () => {
+  const multiSceneBoard: CutBoardData = {
+    ...board,
+    scenes: [
+      board.scenes[0],
+      {
+        id: "scene-2",
+        order: 2,
+        title: "해결",
+        source_script_version_id: "script-version-1",
+        cuts: [{ ...board.scenes[0].cuts[1], id: "cut-3", order: 3, title: "실행" }],
+      },
+    ],
+  };
+
+  render(
+    <DesignBoard
+      projectId="project-1"
+      data={multiSceneBoard}
+      isLoading={false}
+      error=""
+      onRegenerate={vi.fn()}
+      onContinueToOutput={vi.fn()}
+      onBackToCuts={vi.fn()}
+    />,
+  );
+
+  const grids = document.querySelectorAll(".design-card-grid");
+  expect(grids).toHaveLength(1);
+  expect(grids[0]?.querySelectorAll(".design-cut-card")).toHaveLength(3);
+  expect(screen.getAllByText("씬 1 · 도입")).toHaveLength(2);
+  expect(screen.getByText("씬 2 · 해결")).toBeInTheDocument();
+});
+
 test("allows moving to output after every cut image is ready", () => {
   const onContinueToOutput = vi.fn();
   const completeBoard: CutBoardData = {

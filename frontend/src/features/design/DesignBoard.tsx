@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { ArrowClockwise, Clock, FileText, Image as ImageIcon, Lock, Sparkle } from "@phosphor-icons/react";
-import { resolveMediaUrl, type CutBoardData, type CutBoardCut, type CutRegenerationOptions } from "../../app/api";
+import { resolveMediaUrl, type CutBoardData, type CutBoardCut, type CutBoardScene, type CutRegenerationOptions } from "../../app/api";
 import type { CutAction } from "../cuts/CutCard";
 import "./design.css";
 
@@ -38,13 +38,14 @@ function previewUrl(projectId: string, cut: CutBoardCut) {
 
 interface DesignCutCardProps {
   projectId: string;
+  scene: Pick<CutBoardScene, "order" | "title">;
   cut: CutBoardCut;
   isBusy: boolean;
   busyAction: CutAction | null;
   onRegenerate: DesignBoardProps["onRegenerate"];
 }
 
-function DesignCutCard({ projectId, cut, isBusy, busyAction, onRegenerate }: DesignCutCardProps) {
+function DesignCutCard({ projectId, scene, cut, isBusy, busyAction, onRegenerate }: DesignCutCardProps) {
   const [visualPrompt, setVisualPrompt] = useState(cut.visual_prompt);
   const [isPromptEdited, setIsPromptEdited] = useState(false);
   const imageUrl = previewUrl(projectId, cut);
@@ -86,7 +87,10 @@ function DesignCutCard({ projectId, cut, isBusy, busyAction, onRegenerate }: Des
 
       <div className="design-cut-card__body">
         <div className="design-cut-card__topline">
-          <span className="design-cut-card__number">컷 {cut.order}</span>
+          <div className="design-cut-card__identity">
+            <span className="design-cut-card__scene">씬 {scene.order} · {scene.title}</span>
+            <span className="design-cut-card__number">컷 {cut.order}</span>
+          </div>
           <span className="design-cut-card__duration"><Clock size={14} aria-hidden="true" />{formatDuration(cut.duration_ms)}</span>
         </div>
         <h3 id={`design-cut-title-${cut.id}`}>{cut.title}</h3>
@@ -183,29 +187,19 @@ export function DesignBoard({ projectId, data, isLoading = false, error, notice,
 
       {!isLoading && !isStale && data && hasCuts ? (
         <div className="design-scenes">
-          {data.scenes.map((scene) => (
-            <section className="design-scene" key={scene.id} aria-labelledby={`design-scene-title-${scene.id}`}>
-              <header className="design-scene__heading">
-                <div>
-                  <span>씬 {scene.order}</span>
-                  <h2 id={`design-scene-title-${scene.id}`}>{scene.title}</h2>
-                </div>
-                <span>{scene.cuts.length}컷</span>
-              </header>
-              <div className="design-card-grid">
-                {scene.cuts.map((cut) => (
-                  <DesignCutCard
-                    key={cut.id}
-                    projectId={projectId}
-                    cut={cut}
-                    isBusy={busyCutId === cut.id}
-                    busyAction={busyCutId === cut.id ? busyCutAction : null}
-                    onRegenerate={onRegenerate}
-                  />
-                ))}
-              </div>
-            </section>
-          ))}
+          <div className="design-card-grid">
+            {data.scenes.flatMap((scene) => scene.cuts.map((cut) => (
+              <DesignCutCard
+                key={cut.id}
+                projectId={projectId}
+                scene={scene}
+                cut={cut}
+                isBusy={busyCutId === cut.id}
+                busyAction={busyCutId === cut.id ? busyCutAction : null}
+                onRegenerate={onRegenerate}
+              />
+            )))}
+          </div>
         </div>
       ) : null}
 

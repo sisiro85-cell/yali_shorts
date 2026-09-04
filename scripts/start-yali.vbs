@@ -1,6 +1,6 @@
 Option Explicit
 
-Dim fso, shell, root, pythonExe, npmExe, nodeExe, frontendDir, backendDir, renderWorkerDir, renderWorkerEntry, storageDir, pidFile
+Dim fso, shell, root, pythonExe, npmExe, nodeExe, frontendDir, backendDir, renderWorkerDir, renderWorkerEntry, frontendViteEntry, storageDir, pidFile
 Set fso = CreateObject("Scripting.FileSystemObject")
 Set shell = CreateObject("WScript.Shell")
 
@@ -17,6 +17,7 @@ frontendDir = fso.BuildPath(root, "frontend")
 backendDir = fso.BuildPath(root, "backend")
 renderWorkerDir = fso.BuildPath(root, "render-worker")
 renderWorkerEntry = fso.BuildPath(renderWorkerDir, "dist\index.js")
+frontendViteEntry = fso.BuildPath(frontendDir, "node_modules\.bin\vite.cmd")
 storageDir = fso.BuildPath(root, "storage")
 pidFile = fso.BuildPath(storageDir, ".yali-processes.json")
 shell.Environment("PROCESS")("YALI_PROJECTS_ROOT") = fso.BuildPath(storageDir, "projects")
@@ -29,6 +30,10 @@ If WScript.Arguments.Count > 0 Then
         End If
         If Not fso.FolderExists(backendDir) Then
             WScript.Echo "backend folder was not found: " & backendDir
+            WScript.Quit 1
+        End If
+        If Not fso.FileExists(frontendViteEntry) Then
+            WScript.Echo "frontend dependencies were not installed: run npm --prefix frontend install"
             WScript.Quit 1
         End If
         If Not fso.FileExists(renderWorkerEntry) Then

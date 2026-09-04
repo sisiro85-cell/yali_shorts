@@ -83,6 +83,36 @@ def find_powershell() -> str | None:
     )
 
 
+def missing_project_requirements(root: Path) -> list[str]:
+    """Return project artifacts that must exist before services can start."""
+
+    missing: list[str] = []
+    if not (root / "frontend").is_dir():
+        missing.append("frontend folder")
+    if not (root / "backend").is_dir():
+        missing.append("backend folder")
+
+    frontend_bins = (
+        root / "frontend" / "node_modules" / ".bin" / "vite.cmd",
+        root / "frontend" / "node_modules" / ".bin" / "vite",
+    )
+    if not any(path.is_file() for path in frontend_bins):
+        missing.append("frontend dependencies (vite)")
+
+    if not (root / "render-worker" / "dist" / "index.js").is_file():
+        missing.append("render worker build")
+    return missing
+
+
+def show_missing_requirements(missing: list[str]) -> None:
+    details = "\n".join(f"- {item}" for item in missing)
+    show_error(
+        "실행에 필요한 구성요소가 없습니다.\n"
+        f"{details}\n\n"
+        "README.md의 Windows 개발 순서대로 의존성을 설치하고 다시 실행하세요."
+    )
+
+
 def hidden_process_options(root: Path) -> dict[str, object]:
     options: dict[str, object] = {
         "cwd": str(root),
@@ -100,6 +130,11 @@ def hidden_process_options(root: Path) -> dict[str, object]:
 
 
 def run_validation(root: Path) -> int:
+    missing = missing_project_requirements(root)
+    if missing:
+        show_missing_requirements(missing)
+        return 1
+
     script = root / "scripts" / "start-yali.vbs"
     completed = subprocess.run(
         [find_wscript(), str(script), "/validate"],
@@ -169,6 +204,11 @@ def open_frontend() -> bool:
 
 
 def start_services(root: Path) -> int:
+    missing = missing_project_requirements(root)
+    if missing:
+        show_missing_requirements(missing)
+        return 1
+
     script = root / "scripts" / "start-yali.vbs"
     try:
         subprocess.Popen(

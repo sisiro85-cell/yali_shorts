@@ -170,6 +170,21 @@ test("미리보기 컷을 바꾸고 음성 속도와 자막 위치를 저장한�
   expect(await screen.findByText("설정을 저장했습니다.")).toBeInTheDocument();
 });
 
+test("무료 라이선스 한글 글꼴을 추가로 선택할 수 있다", async () => {
+  render(<VideoSettingsPage projectId="project-1" />);
+
+  const fontSelect = await screen.findByLabelText("자막 글꼴");
+  expect(screen.getByRole("group", { name: "무료 라이선스 한글 글꼴" })).toBeInTheDocument();
+  for (const font of ["Noto Serif KR", "SUIT", "Spoqa Han Sans Neo", "IBM Plex Sans KR", "나눔명조"]) {
+    expect(screen.getByRole("option", { name: font })).toBeInTheDocument();
+  }
+  expect(screen.getByText(/SIL Open Font License 1\.1/)).toBeInTheDocument();
+
+  fireEvent.change(fontSelect, { target: { value: "SUIT" } });
+  expect(fontSelect).toHaveValue("SUIT");
+  expect(screen.getByRole("button", { name: "설정 저장" })).toBeEnabled();
+});
+
 test("선택한 컷 예외는 프로젝트 기본값에서 시작하고 변경 필드만 저장한다", async () => {
   render(<VideoSettingsPage projectId="project-1" />);
 

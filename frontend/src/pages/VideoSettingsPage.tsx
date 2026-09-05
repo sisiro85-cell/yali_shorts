@@ -30,7 +30,18 @@ const VOICE_OPTIONS = [
   { value: "en-US-AriaNeural", label: "en-US-AriaNeural · 여성" },
 ];
 
-const FONT_OPTIONS = ["Pretendard", "Noto Sans KR", "나눔고딕", "Arial"];
+const FREE_KOREAN_FONT_OPTIONS = [
+  { value: "Pretendard", label: "Pretendard" },
+  { value: "Noto Sans KR", label: "Noto Sans KR" },
+  { value: "Noto Serif KR", label: "Noto Serif KR" },
+  { value: "SUIT", label: "SUIT" },
+  { value: "Spoqa Han Sans Neo", label: "Spoqa Han Sans Neo" },
+  { value: "IBM Plex Sans KR", label: "IBM Plex Sans KR" },
+  { value: "나눔고딕", label: "나눔고딕" },
+  { value: "나눔명조", label: "나눔명조" },
+] as const;
+const SYSTEM_FONT_OPTIONS = [{ value: "Arial", label: "Arial" }] as const;
+const FONT_VALUES = [...FREE_KOREAN_FONT_OPTIONS, ...SYSTEM_FONT_OPTIONS].map((font) => font.value);
 const POSITION_OPTIONS: Array<{ value: SubtitlePosition; label: string }> = [
   { value: "top", label: "상단" },
   { value: "center", label: "중앙" },
@@ -443,7 +454,7 @@ export function VideoSettingsPage({ projectId }: { projectId: string }) {
                   <fieldset className="video-settings-fieldset"><legend>자막 위치</legend><div className="video-settings-position-grid">{POSITION_OPTIONS.map((option) => <button className={`video-settings-position${editingSettings.subtitle.style.position === option.value ? " is-selected" : ""}`} type="button" aria-label={`자막 위치: ${option.label}`} aria-pressed={editingSettings.subtitle.style.position === option.value} key={option.value} onClick={() => updateSubtitle("position", option.value)}>{option.label}</button>)}</div></fieldset>
                   {editingSettings.subtitle.style.position === "custom" ? <div className="video-settings-field-grid"><label className="video-settings-field"><span>가로 위치 (%)</span><input aria-label="자막 가로 위치" type="number" min="0" max="100" value={editingSettings.subtitle.style.custom_x} onChange={(event) => updateSubtitle("custom_x", Number(event.target.value))} /></label><label className="video-settings-field"><span>세로 위치 (%)</span><input aria-label="자막 세로 위치" type="number" min="0" max="100" value={editingSettings.subtitle.style.custom_y} onChange={(event) => updateSubtitle("custom_y", Number(event.target.value))} /></label></div> : null}
                   <div className="video-settings-field-grid">
-                    <label className="video-settings-field"><span>글꼴</span><select aria-label="자막 글꼴" value={editingSettings.subtitle.style.font_family} onChange={(event) => updateSubtitle("font_family", event.target.value)}>{FONT_OPTIONS.map((font) => <option value={font} key={font}>{font}</option>)}{FONT_OPTIONS.every((font) => font !== editingSettings.subtitle.style.font_family) ? <option value={editingSettings.subtitle.style.font_family}>{editingSettings.subtitle.style.font_family}</option> : null}</select></label>
+                    <label className="video-settings-field"><span>글꼴</span><select aria-label="자막 글꼴" aria-describedby="subtitle-font-license" value={editingSettings.subtitle.style.font_family} onChange={(event) => updateSubtitle("font_family", event.target.value)}><optgroup label="무료 라이선스 한글 글꼴">{FREE_KOREAN_FONT_OPTIONS.map((font) => <option value={font.value} key={font.value}>{font.label}</option>)}</optgroup><optgroup label="시스템 글꼴">{SYSTEM_FONT_OPTIONS.map((font) => <option value={font.value} key={font.value}>{font.label}</option>)}</optgroup>{FONT_VALUES.every((font) => font !== editingSettings.subtitle.style.font_family) ? <option value={editingSettings.subtitle.style.font_family}>{editingSettings.subtitle.style.font_family}</option> : null}</select><small id="subtitle-font-license" className="video-settings-field__hint">무료 글꼴은 SIL Open Font License 1.1 기준입니다.</small></label>
                     <label className="video-settings-range"><span>글자 크기 <output>{editingSettings.subtitle.style.font_size}px</output></span><input aria-label="자막 글자 크기" type="range" min="24" max="120" step="1" value={editingSettings.subtitle.style.font_size} onChange={(event) => updateSubtitle("font_size", Number(event.target.value))} /></label>
                     <label className="video-settings-field"><span>정렬</span><select aria-label="자막 정렬" value={editingSettings.subtitle.style.alignment} onChange={(event) => updateSubtitle("alignment", event.target.value as SubtitleStyle["alignment"])}><option value="left">왼쪽</option><option value="center">가운데</option><option value="right">오른쪽</option></select></label>
                     <label className="video-settings-field"><span>최대 줄 수</span><select aria-label="자막 최대 줄 수" value={editingSettings.subtitle.style.max_lines} onChange={(event) => updateSubtitle("max_lines", Number(event.target.value))}>{[1, 2, 3, 4].map((lines) => <option value={lines} key={lines}>{lines}줄</option>)}</select></label>

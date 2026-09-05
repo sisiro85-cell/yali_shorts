@@ -329,6 +329,12 @@
   font-size: 11px;
 }
 
+.video-settings-field__hint {
+  color: var(--color-text-secondary);
+  font-size: 10px;
+  line-height: 1.4;
+}
+
 .video-settings-field--wide {
   grid-column: 1 / -1;
 }

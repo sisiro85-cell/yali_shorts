@@ -101,13 +101,15 @@ test("영상 설정을 컷 미리보기와 함께 수정하고 저장한다", as
   await expect(page.getByRole("img", { name: "컷 1 미리보기" })).toBeVisible();
 
   await page.getByRole("slider", { name: "말하기 속도" }).fill("1.2");
+  await page.getByLabel("자막 글꼴").selectOption("SUIT");
+  await expect(page.getByLabel("자막 글꼴")).toHaveValue("SUIT");
   await page.getByRole("button", { name: "자막 위치: 상단" }).click();
   await page.getByRole("button", { name: "설정 저장" }).click();
 
   await expect(page.getByText("설정을 저장했습니다.")).toBeVisible();
   expect(patchPayload).toMatchObject({
     audio: { speed: 1.2 },
-    subtitle: { style: { position: "top" } },
+    subtitle: { style: { position: "top", font_family: "SUIT" } },
   });
 
   await page.screenshot({ path: "test-results/video-settings-desktop.png", fullPage: true });

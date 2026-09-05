@@ -83,6 +83,7 @@ class OutputVariant(BaseModel):
     preset_id: str | None = None
     cut_version_ids: list[UUID] = Field(default_factory=list)
     subtitle_style: dict[str, Any] = Field(default_factory=dict)
+    video_settings: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime = Field(default_factory=utc_now)
 
 

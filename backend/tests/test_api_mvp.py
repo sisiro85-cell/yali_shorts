@@ -379,6 +379,55 @@ def test_output_manifest_preserves_original_media_and_format_dimensions(tmp_path
     assert repeated.json()["manifest_hash"] == payload["manifest_hash"]
 
 
+def test_output_manifest_includes_project_video_settings(tmp_path: Path) -> None:
+    client, project = _client(tmp_path)
+    _complete_idea(client, project)
+    client.post(f"/api/projects/{project.id}/script/generate", json={})
+    client.post(f"/api/projects/{project.id}/cuts/generate", json={})
+    settings = client.patch(
+        f"/api/projects/{project.id}/video-settings",
+        json={"audio": {"speed": 1.2}, "subtitle": {"style": {"position": "top"}}},
+    )
+    assert settings.status_code == 200
+
+    manifest = client.post(
+        f"/api/projects/{project.id}/output/manifest",
+        json={"format": "shorts"},
+    )
+
+    assert manifest.status_code == 200
+    payload = manifest.json()
+    assert payload["video_settings"]["audio"]["speed"] == 1.2
+    assert payload["video_settings"]["subtitle"]["style"]["position"] == "top"
+    assert payload["cuts"][0]["subtitle_style"]["position"] == "top"
+
+
+def test_output_manifest_legacy_subtitle_style_overrides_project_style_only(tmp_path: Path) -> None:
+    client, project = _client(tmp_path)
+    _complete_idea(client, project)
+    client.post(f"/api/projects/{project.id}/script/generate", json={})
+    client.post(f"/api/projects/{project.id}/cuts/generate", json={})
+    settings = client.patch(
+        f"/api/projects/{project.id}/video-settings",
+        json={"audio": {"speed": 1.2}, "subtitle": {"style": {"position": "top"}}},
+    )
+    assert settings.status_code == 200
+
+    manifest = client.post(
+        f"/api/projects/{project.id}/output/manifest",
+        json={
+            "format": "shorts",
+            "subtitle_style": {"position": "center", "font_size": 72},
+        },
+    )
+
+    assert manifest.status_code == 200
+    payload = manifest.json()
+    assert payload["video_settings"]["audio"]["speed"] == 1.2
+    assert payload["video_settings"]["subtitle"]["style"]["position"] == "center"
+    assert payload["cuts"][0]["subtitle_style"]["font_size"] == 72
+
+
 def test_output_manifest_requires_current_nonempty_cuts(tmp_path: Path) -> None:
     client, project = _client(tmp_path)
 

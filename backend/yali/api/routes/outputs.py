@@ -10,6 +10,7 @@ from fastapi.responses import FileResponse
 from yali.api.dependencies import get_job_queue, get_project_store
 from yali.api.errors import ApiValidationError
 from yali.domain.models import OutputVariant, Project
+from yali.domain.video_settings import ProjectVideoSettings
 from yali.jobs.models import JobAccepted
 from yali.jobs.queue import PersistentJobQueue
 from yali.rendering.manifest import OutputManifest, SubtitleStyle, build_manifest
@@ -24,7 +25,8 @@ class OutputManifestRequest(BaseModel):
 
     output_format: Literal["shorts", "reels", "card_news"] = Field(alias="format")
     preset_id: str | None = Field(default=None, max_length=200)
-    subtitle_style: SubtitleStyle = Field(default_factory=SubtitleStyle)
+    subtitle_style: SubtitleStyle | None = None
+    video_settings: ProjectVideoSettings | None = None
 
 
 class OutputRenderRequest(OutputManifestRequest):
@@ -103,6 +105,7 @@ def _prepare_manifest(
         request.output_format,
         request.preset_id,
         request.subtitle_style,
+        request.video_settings,
     )
     existing = next(
         (variant for variant in project.output_variants if variant.id == manifest.output_variant_id),
@@ -116,7 +119,8 @@ def _prepare_manifest(
                 format=request.output_format,
                 preset_id=request.preset_id,
                 cut_version_ids=manifest.cut_version_ids,
-                subtitle_style=request.subtitle_style.model_dump(mode="json"),
+                subtitle_style=manifest.video_settings.subtitle.style.model_dump(mode="json"),
+                video_settings=manifest.video_settings.model_dump(mode="json"),
                 created_at=manifest.created_at,
             )
         )

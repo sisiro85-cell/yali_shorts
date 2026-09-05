@@ -8,10 +8,10 @@ from pathlib import PurePosixPath
 from typing import Literal
 from uuid import UUID, uuid5
 
-from pydantic import BaseModel, ConfigDict, Field, computed_field
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, computed_field
 
 from yali.domain.models import Cut, CutVersion, MediaAsset, Project
-from yali.domain.video_settings import ProjectVideoSettings, SubtitlePosition, SubtitleStyle
+from yali.domain.video_settings import ProjectVideoSettings, SubtitleStyle
 
 
 OutputFormat = Literal["shorts", "reels", "card_news"]
@@ -87,6 +87,7 @@ class OutputManifest(BaseModel):
     assets: list[ManifestAsset]
     cuts: list[ManifestCut]
     settings: OutputSettings
+    video_settings: ProjectVideoSettings = Field(default_factory=ProjectVideoSettings)
 
     def to_canonical_json(self) -> str:
         payload = self.model_dump(mode="json", exclude={"manifest_hash"})
@@ -111,9 +112,19 @@ def build_manifest(
     output_format: OutputFormat,
     preset_id: str | None = None,
     subtitle_style: SubtitleStyle | None = None,
+    video_settings: ProjectVideoSettings | None = None,
 ) -> OutputManifest:
     width, height = _OUTPUT_DIMENSIONS[output_format]
-    resolved_subtitle_style = subtitle_style or SubtitleStyle()
+    resolved_video_settings = video_settings or project.video_settings
+    if subtitle_style is not None:
+        resolved_video_settings = resolved_video_settings.model_copy(
+            update={
+                "subtitle": resolved_video_settings.subtitle.model_copy(
+                    update={"style": subtitle_style},
+                )
+            },
+        )
+    resolved_subtitle_style = resolved_video_settings.subtitle.style
     project_assets = {asset.id: asset for asset in project.assets}
     manifest_cuts: list[ManifestCut] = []
     cut_version_ids: list[UUID] = []
@@ -177,7 +188,7 @@ def build_manifest(
         output_format,
         preset_id,
         cut_version_ids,
-        resolved_subtitle_style,
+        resolved_video_settings,
     )
     existing_variant = next(
         (variant for variant in project.output_variants if variant.id == output_variant_id),
@@ -198,6 +209,7 @@ def build_manifest(
         assets=assets,
         cuts=manifest_cuts,
         settings=OutputSettings(width=width, height=height),
+        video_settings=resolved_video_settings,
     )
 
 
@@ -282,22 +294,37 @@ def _output_variant_id(
     output_format: OutputFormat,
     preset_id: str | None,
     cut_version_ids: list[UUID],
-    subtitle_style: SubtitleStyle,
+    video_settings: ProjectVideoSettings,
 ) -> UUID:
-    style_payload = subtitle_style.model_dump(mode="json")
+    settings_payload = video_settings.model_dump(mode="json")
     for variant in project.output_variants:
         if (
             variant.format == output_format
             and variant.preset_id == preset_id
             and variant.cut_version_ids == cut_version_ids
-            and (variant.subtitle_style or SubtitleStyle().model_dump(mode="json")) == style_payload
+            and _variant_video_settings(variant).model_dump(mode="json") == settings_payload
         ):
             return variant.id
 
     provenance = ",".join(str(item) for item in cut_version_ids)
-    style_key = json.dumps(style_payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-    key = f"{project.id}|{output_format}|{preset_id or ''}|{provenance}|{style_key}"
+    settings_key = json.dumps(settings_payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    key = f"{project.id}|{output_format}|{preset_id or ''}|{provenance}|{settings_key}"
     return uuid5(_OUTPUT_VARIANT_NAMESPACE, key)
+
+
+def _variant_video_settings(variant) -> ProjectVideoSettings:
+    if variant.video_settings:
+        try:
+            return ProjectVideoSettings.model_validate(variant.video_settings)
+        except ValidationError:
+            pass
+    return ProjectVideoSettings.model_validate(
+        {
+            "subtitle": {
+                "style": variant.subtitle_style or SubtitleStyle().model_dump(mode="json"),
+            }
+        }
+    )
 
 
 def _append_unique(values: list[UUID], value: UUID) -> None:

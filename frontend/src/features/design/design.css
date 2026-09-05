@@ -70,6 +70,10 @@
   white-space: nowrap;
 }
 
+.design-board__settings {
+  white-space: nowrap;
+}
+
 .design-state,
 .design-stale,
 .design-empty {

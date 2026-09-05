@@ -2,6 +2,7 @@ import { useCurrentPath } from "./navigation";
 import { HomePage } from "../pages/HomePage";
 import { IdeaPage } from "../pages/IdeaPage";
 import { ScriptPage, type StagePageStage } from "../pages/ScriptPage";
+import { VideoSettingsPage } from "../pages/VideoSettingsPage";
 
 export function AppRouter() {
   const pathname = useCurrentPath();
@@ -9,6 +10,11 @@ export function AppRouter() {
 
   if (ideaMatch) {
     return <IdeaPage projectId={ideaMatch[1]} />;
+  }
+  const videoSettingsMatch = pathname.match(/^\/projects\/([^/]+)\/design\/settings$/);
+
+  if (videoSettingsMatch) {
+    return <VideoSettingsPage projectId={videoSettingsMatch[1]} />;
   }
   const scriptMatch = pathname.match(/^\/projects\/([^/]+)\/(script|cuts|design|output)$/);
 

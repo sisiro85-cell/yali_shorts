@@ -14,6 +14,7 @@ interface DesignBoardProps {
   busyCutAction?: CutAction | null;
   onRegenerate: (cutId: string, options: CutRegenerationOptions) => void | Promise<void>;
   onGenerateAll?: (cutIds: string[]) => void | Promise<void>;
+  onOpenVideoSettings?: () => void;
   isGeneratingAll?: boolean;
   bulkProgress?: { completed: number; total: number } | null;
   onBackToCuts?: () => void;
@@ -171,7 +172,7 @@ function countReadyImages(data: CutBoardData | null, targetAspectRatio: ImageAsp
   return data?.scenes.reduce((total, scene) => total + scene.cuts.filter((cut) => isImageReady(cut, targetAspectRatio)).length, 0) ?? 0;
 }
 
-export function DesignBoard({ projectId, data, isLoading = false, error, notice, busyCutId = null, busyCutAction = null, onRegenerate, onGenerateAll, isGeneratingAll = false, bulkProgress = null, onBackToCuts, onContinueToOutput, isContinuing = false }: DesignBoardProps) {
+export function DesignBoard({ projectId, data, isLoading = false, error, notice, busyCutId = null, busyCutAction = null, onRegenerate, onGenerateAll, onOpenVideoSettings, isGeneratingAll = false, bulkProgress = null, onBackToCuts, onContinueToOutput, isContinuing = false }: DesignBoardProps) {
   const totalCuts = countCuts(data);
   const targetAspectRatio = data?.target_aspect_ratio ?? "9:16";
   const readyImages = countReadyImages(data, targetAspectRatio);
@@ -201,6 +202,7 @@ export function DesignBoard({ projectId, data, isLoading = false, error, notice,
         </div>
         {data && !isStale ? (
           <div className="design-board__heading-actions">
+            {onOpenVideoSettings ? <button className="button button--secondary design-board__settings" type="button" onClick={onOpenVideoSettings}>영상 설정</button> : null}
             <div className="design-board__progress" aria-label="이미지 생성 현황">
               <strong>{readyImages}/{totalCuts}</strong>
               <span>이미지 준비</span>

@@ -30,3 +30,31 @@ test("아이디어 생성 요청은 멱등성 키와 JSON content type을 함께
   expect(headers.get("Content-Type")).toBe("application/json");
   expect(headers.get("Idempotency-Key")).toBe("request-1");
 });
+
+test("영상 설정을 프로젝트별로 조회하고 부분 수정한다", async () => {
+  const fetchMock = vi.fn((_input: string, init?: RequestInit) => {
+    if (init?.method === "PATCH") {
+      return Promise.resolve(new Response(JSON.stringify({
+        audio: { speed: 1.2 },
+        subtitle: { style: { position: "top" } },
+      }), { status: 200 }));
+    }
+    return Promise.resolve(new Response(JSON.stringify({
+      audio: { provider: "edge_tts", speed: 1 },
+      subtitle: { enabled: true, style: { position: "bottom" } },
+    }), { status: 200 }));
+  });
+  vi.stubGlobal("fetch", fetchMock);
+
+  await apiClient.getVideoSettings("project-1");
+  await apiClient.updateVideoSettings("project-1", { audio: { speed: 1.2 } });
+
+  expect(fetchMock).toHaveBeenNthCalledWith(
+    1,
+    expect.stringContaining("/projects/project-1/video-settings"),
+    expect.objectContaining({ headers: { "Content-Type": "application/json" } }),
+  );
+  const [, patchInit] = fetchMock.mock.calls[1] as [string, RequestInit];
+  expect(patchInit.method).toBe("PATCH");
+  expect(JSON.parse(String(patchInit.body))).toEqual({ audio: { speed: 1.2 } });
+});

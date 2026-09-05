@@ -124,6 +124,26 @@ test("provides a top action for generating every missing cut image", () => {
   expect(onGenerateAll).toHaveBeenCalledWith(["cut-2"]);
 });
 
+test("provides an entry point for project voice and subtitle settings", () => {
+  const onOpenVideoSettings = vi.fn();
+
+  render(
+    <DesignBoard
+      projectId="project-1"
+      data={board}
+      isLoading={false}
+      error=""
+      onRegenerate={vi.fn()}
+      onOpenVideoSettings={onOpenVideoSettings}
+      onContinueToOutput={vi.fn()}
+      onBackToCuts={vi.fn()}
+    />,
+  );
+
+  fireEvent.click(screen.getByRole("button", { name: "영상 설정" }));
+  expect(onOpenVideoSettings).toHaveBeenCalledTimes(1);
+});
+
 test("places every cut in one grid while keeping its scene context", () => {
   const multiSceneBoard: CutBoardData = {
     ...board,

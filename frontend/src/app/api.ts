@@ -167,6 +167,53 @@ export interface CutBoardData {
   scenes: CutBoardScene[];
 }
 
+export type TTSProvider = "edge_tts" | "azure_speech" | "elevenlabs" | "upload";
+export type SubtitlePosition = "top" | "center" | "bottom" | "custom";
+export type SubtitleAlignment = "left" | "center" | "right";
+
+export interface TTSSettings {
+  enabled: boolean;
+  provider: TTSProvider;
+  language: string;
+  voice_id: string;
+  speed: number;
+  volume: number;
+  pitch: number;
+}
+
+export interface SubtitleStyle {
+  position: SubtitlePosition;
+  font_family: string;
+  font_size: number;
+  color: string;
+  outline_color: string;
+  outline_width: number;
+  background_color: string | null;
+  custom_x: number;
+  custom_y: number;
+  alignment: SubtitleAlignment;
+  max_lines: number;
+  safe_area: boolean;
+}
+
+export interface SubtitleSettings {
+  enabled: boolean;
+  style: SubtitleStyle;
+}
+
+export interface ProjectVideoSettings {
+  audio: TTSSettings;
+  subtitle: SubtitleSettings;
+}
+
+export interface VideoSettingsPatch {
+  audio?: Partial<TTSSettings>;
+  subtitle?: {
+    enabled?: boolean;
+    style?: Partial<SubtitleStyle>;
+  };
+}
+
 export interface ApiErrorDetails {
   errors?: Array<{ loc: Array<string | number>; msg: string; type: string; input?: unknown }>;
   [key: string]: unknown;
@@ -275,6 +322,15 @@ export const apiClient = {
   },
   async getCutBoard(projectId: string): Promise<CutBoardData> {
     return requestJson(`/projects/${projectId}/cuts`);
+  },
+  async getVideoSettings(projectId: string): Promise<ProjectVideoSettings> {
+    return requestJson(`/projects/${projectId}/video-settings`);
+  },
+  async updateVideoSettings(projectId: string, patch: VideoSettingsPatch): Promise<ProjectVideoSettings> {
+    return requestJson(`/projects/${projectId}/video-settings`, {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    });
   },
   async generateCuts(projectId: string, modelName?: string): Promise<CutBoardData> {
     return requestJson(`/projects/${projectId}/cuts/generate`, {

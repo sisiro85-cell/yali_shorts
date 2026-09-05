@@ -48,6 +48,10 @@ export function projectScriptPath(projectId: string) {
   return `/projects/${projectId}/script`;
 }
 
+export function projectVideoSettingsPath(projectId: string) {
+  return `/projects/${projectId}/design/settings`;
+}
+
 export function projectStagePath(projectId: string, stage: WorkflowStage) {
   if (stage === "idea") return projectIdeaPath(projectId);
   if (stage === "script") return projectScriptPath(projectId);

@@ -298,6 +298,9 @@ export const apiClient = {
     const query = projectId ? `?project_id=${projectId}` : "";
     return (await requestJson<{ jobs: JobSummary[] }>(`/jobs${query}`)).jobs;
   },
+  async getJob(jobId: string): Promise<JobSummary> {
+    return requestJson<JobSummary>(`/jobs/${jobId}`);
+  },
   async getIdeaPage(projectId: string): Promise<IdeaPageData> {
     return requestJson(`/projects/${projectId}/ideas`);
   },

@@ -58,3 +58,25 @@ test("영상 설정을 프로젝트별로 조회하고 부분 수정한다", asy
   expect(patchInit.method).toBe("PATCH");
   expect(JSON.parse(String(patchInit.body))).toEqual({ audio: { speed: 1.2 } });
 });
+
+test("작업 상태를 단일 작업 API로 조회한다", async () => {
+  const fetchMock = vi.fn(() => Promise.resolve(new Response(JSON.stringify({
+    id: "job-1",
+    project_id: "project-1",
+    cut_id: "cut-1",
+    kind: "cut.regenerate",
+    status: "running",
+    progress: 42,
+    error: null,
+    retry_count: 0,
+  }), { status: 200 })));
+  vi.stubGlobal("fetch", fetchMock);
+
+  const job = await apiClient.getJob("job-1");
+
+  expect(job.status).toBe("running");
+  expect(fetchMock).toHaveBeenCalledWith(
+    expect.stringContaining("/jobs/job-1"),
+    expect.objectContaining({ headers: { "Content-Type": "application/json" } }),
+  );
+});

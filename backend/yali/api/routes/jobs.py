@@ -21,3 +21,8 @@ def list_jobs(
     project_id: UUID | None = None, job_queue: PersistentJobQueue = Depends(get_job_queue)
 ) -> JobListResponse:
     return JobListResponse(jobs=[JobStatusResponse.from_job(job) for job in job_queue.list(project_id)])
+
+
+@router.get("/{job_id}", response_model=JobStatusResponse)
+def get_job(job_id: UUID, job_queue: PersistentJobQueue = Depends(get_job_queue)) -> JobStatusResponse:
+    return JobStatusResponse.from_job(job_queue.get(job_id))

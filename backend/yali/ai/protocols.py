@@ -13,6 +13,7 @@ class Operation(StrEnum):
     GENERATE_CUT_PLAN = "generate_cut_plan"
     REGENERATE_CUT = "regenerate_cut"
     GENERATE_SUBTITLES = "generate_subtitles"
+    GENERATE_TTS = "generate_tts"
 
 
 @dataclass(frozen=True, slots=True)
@@ -67,6 +68,26 @@ class ImageGenerationResponse:
 
 
 @dataclass(frozen=True, slots=True)
+class TTSGenerationRequest:
+    text: str
+    language: str
+    voice_id: str
+    speed: float
+    volume: float
+    pitch: float
+    metadata: GenerationMetadata
+
+
+@dataclass(frozen=True, slots=True)
+class TTSGenerationResponse:
+    content: bytes
+    media_type: str
+    provider: str
+    voice_id: str
+    duration_ms: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class ProviderHealth:
     provider: str
     available: bool
@@ -88,5 +109,14 @@ class ImageProvider(Protocol):
     name: str
 
     def generate(self, request: ImageGenerationRequest) -> ImageGenerationResponse: ...
+
+    def health(self) -> ProviderHealth: ...
+
+
+@runtime_checkable
+class TTSProvider(Protocol):
+    name: str
+
+    def generate(self, request: TTSGenerationRequest) -> TTSGenerationResponse: ...
 
     def health(self) -> ProviderHealth: ...

@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from yali.content.models import ScriptState
 from yali.domain.enums import ProjectStage, ProjectStatus
+from yali.domain.video_settings import ProjectVideoSettings
 
 
 def utc_now() -> datetime:
@@ -140,6 +141,7 @@ class Project(BaseModel):
     assets: list[MediaAsset] = Field(default_factory=list)
     idea: IdeaState = Field(default_factory=IdeaState)
     script: ScriptState = Field(default_factory=ScriptState)
+    video_settings: ProjectVideoSettings = Field(default_factory=ProjectVideoSettings)
     output_variants: list[OutputVariant] = Field(default_factory=list)
     jobs: list[JobRecord] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=utc_now)

@@ -11,11 +11,10 @@ from uuid import UUID, uuid5
 from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 from yali.domain.models import Cut, CutVersion, MediaAsset, Project
+from yali.domain.video_settings import ProjectVideoSettings, SubtitlePosition, SubtitleStyle
 
 
 OutputFormat = Literal["shorts", "reels", "card_news"]
-SubtitlePosition = Literal["top", "center", "bottom", "custom"]
-
 _OUTPUT_VARIANT_NAMESPACE = UUID("8fd8a47f-b317-4e17-9cec-c08f897471ba")
 _OUTPUT_DIMENSIONS: dict[OutputFormat, tuple[int, int]] = {
     "shorts": (1080, 1920),
@@ -23,20 +22,6 @@ _OUTPUT_DIMENSIONS: dict[OutputFormat, tuple[int, int]] = {
     "card_news": (1080, 1080),
 }
 _WINDOWS_DRIVE = re.compile(r"^[A-Za-z]:")
-
-
-class SubtitleStyle(BaseModel):
-    model_config = ConfigDict(frozen=True)
-
-    position: SubtitlePosition = "bottom"
-    font_family: str = "Pretendard"
-    font_size: int = Field(default=60, gt=0)
-    color: str = "#FFFFFF"
-    outline_color: str = "#111111"
-    outline_width: float = Field(default=2.0, ge=0)
-    background_color: str | None = None
-    custom_x: float = Field(default=50.0, ge=0, le=100)
-    custom_y: float = Field(default=82.0, ge=0, le=100)
 
 
 class OutputSettings(BaseModel):

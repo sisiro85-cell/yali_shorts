@@ -209,6 +209,13 @@ def start_services(root: Path) -> int:
         show_missing_requirements(missing)
         return 1
 
+    # The backend is intentionally started without --reload in the packaged
+    # app.  Stop an older Yali process first so launching a newer executable
+    # cannot silently keep serving stale Python modules on port 8000.
+    stopped = stop_services(root)
+    if stopped:
+        return stopped
+
     script = root / "scripts" / "start-yali.vbs"
     try:
         subprocess.Popen(

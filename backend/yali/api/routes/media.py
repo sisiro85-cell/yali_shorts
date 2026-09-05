@@ -29,7 +29,7 @@ class MediaAssetResponse(BaseModel):
     def from_asset(cls, project_id: UUID, asset: MediaAsset) -> "MediaAssetResponse":
         preview_url = (
             f"/api/projects/{project_id}/assets/{asset.id}/preview"
-            if asset.media_type in {"image", "video"}
+            if asset.media_type in {"image", "video", "audio"}
             else None
         )
         return cls(

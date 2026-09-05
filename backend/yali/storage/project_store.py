@@ -181,7 +181,7 @@ class ProjectStore:
     def get_preview_asset_path(self, project_id: UUID, asset_id: UUID) -> Path:
         project = self.get(project_id)
         asset = next((item for item in project.assets if item.id == asset_id), None)
-        if asset is None or asset.media_type not in {"image", "video"}:
+        if asset is None or asset.media_type not in {"image", "video", "audio"}:
             raise MediaAssetNotFoundError(f"Media asset not found: {asset_id}")
         return self._resolve_asset_path(project_id, asset)
 

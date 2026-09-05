@@ -119,7 +119,7 @@
 
 .video-settings-layout {
   display: grid;
-  grid-template-columns: minmax(245px, .72fr) minmax(0, 1.28fr);
+  grid-template-columns: minmax(320px, .78fr) minmax(0, 1.22fr);
   align-items: start;
   gap: 20px;
   margin-top: 24px;
@@ -173,7 +173,7 @@
 .video-settings-preview__canvas {
   position: relative;
   display: grid;
-  width: min(100%, 296px);
+  width: min(100%, 360px);
   margin: 18px auto 0;
   place-items: center;
   overflow: hidden;
@@ -544,7 +544,23 @@
   }
 
   .video-settings-layout {
-    grid-template-columns: minmax(220px, .62fr) minmax(0, 1.38fr);
+    grid-template-columns: minmax(280px, .78fr) minmax(0, 1.22fr);
+  }
+}
+
+@media (max-width: 1360px) and (min-width: 1241px) {
+  .app-shell--video-settings {
+    grid-template-columns: 220px minmax(0, 1fr);
+  }
+
+  .app-shell--video-settings .top-workflow,
+  .app-shell--video-settings .app-shell__main,
+  .app-shell--video-settings .app-shell__quickstart {
+    grid-column: 2;
+  }
+
+  .app-shell--video-settings .app-shell__context {
+    display: none;
   }
 }
 
@@ -572,7 +588,7 @@
 
   .video-settings-preview-card {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(180px, 296px);
+    grid-template-columns: minmax(0, 1fr) minmax(180px, 360px);
     align-items: start;
     gap: 16px;
   }
@@ -614,7 +630,7 @@
   }
 
   .video-settings-preview__canvas {
-    width: min(100%, 260px);
+    width: min(100%, 320px);
     margin-top: 18px;
   }
 

@@ -99,6 +99,17 @@ test("영상 설정을 컷 미리보기와 함께 수정하고 저장한다", as
   await page.goto(`/projects/${projectId}/video-settings`);
   await expect(page.getByRole("heading", { name: "음성·자막 설정" })).toBeVisible();
   await expect(page.getByRole("img", { name: "컷 1 미리보기" })).toBeVisible();
+  const loadedFonts = await page.evaluate(async () => {
+    const families = ["SUIT", "나눔고딕"];
+    const loaded = await Promise.all(families.map(async (family) => {
+      const faces = await document.fonts.load(`700 24px "${family}"`, "한글 자막");
+      return faces.some((face) => face.family === family && face.status === "loaded");
+    }));
+    return Object.fromEntries(families.map((family, index) => [family, loaded[index]]));
+  });
+  expect(loadedFonts).toEqual({ SUIT: true, "나눔고딕": true });
+  const previewWidth = await page.locator(".video-settings-preview__canvas").evaluate((element) => element.getBoundingClientRect().width);
+  expect(previewWidth).toBeGreaterThan(320);
   const subtitleLayout = await page.locator(".video-settings-preview__subtitle").evaluate((element) => {
     const computed = getComputedStyle(element);
     const canvas = element.parentElement?.getBoundingClientRect();

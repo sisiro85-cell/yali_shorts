@@ -22,6 +22,7 @@ from yali.api.routes.outputs import router as outputs_router
 from yali.api.routes.projects import router as projects_router
 from yali.api.routes.scripts import router as scripts_router
 from yali.api.routes.settings import router as settings_router
+from yali.api.routes.video_settings import router as video_settings_router
 from yali.jobs.queue import JobIdempotencyConflict, JobNotFoundError, JobQueueDataError, JobQueueStorageError, PersistentJobQueue
 from yali.jobs.processor import JobProcessor
 from yali.jobs.runner import JobRunner
@@ -105,6 +106,7 @@ def create_app(
     app.include_router(scripts_router, prefix="/api")
     app.include_router(cuts_router, prefix="/api")
     app.include_router(outputs_router, prefix="/api")
+    app.include_router(video_settings_router, prefix="/api")
     app.include_router(settings_router, prefix="/api")
     app.include_router(jobs_router, prefix="/api")
     return app

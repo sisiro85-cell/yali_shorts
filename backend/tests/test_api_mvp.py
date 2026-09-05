@@ -419,6 +419,47 @@ def test_llm_settings_are_redacted_and_health_does_not_generate(tmp_path: Path) 
     assert tested.json() == {"provider": "fake", "ok": True, "message": "Deterministic fake provider is available"}
 
 
+def test_video_settings_get_returns_defaults(tmp_path: Path) -> None:
+    client, project = _client(tmp_path)
+
+    response = client.get(f"/api/projects/{project.id}/video-settings")
+
+    assert response.status_code == 200
+    assert response.json()["audio"]["provider"] == "edge_tts"
+    assert response.json()["audio"]["speed"] == 1.0
+    assert response.json()["subtitle"]["style"]["position"] == "bottom"
+
+
+def test_video_settings_patch_merges_nested_values_and_persists(tmp_path: Path) -> None:
+    client, project = _client(tmp_path)
+
+    response = client.patch(
+        f"/api/projects/{project.id}/video-settings",
+        json={
+            "audio": {"speed": 1.15},
+            "subtitle": {"style": {"position": "top", "font_size": 72}},
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["audio"]["speed"] == 1.15
+    assert response.json()["audio"]["volume"] == 0.85
+    assert response.json()["subtitle"]["style"]["position"] == "top"
+    assert response.json()["subtitle"]["style"]["font_size"] == 72
+    assert client.get(f"/api/projects/{project.id}/video-settings").json() == response.json()
+
+
+def test_video_settings_patch_rejects_invalid_values(tmp_path: Path) -> None:
+    client, project = _client(tmp_path)
+
+    response = client.patch(
+        f"/api/projects/{project.id}/video-settings",
+        json={"audio": {"speed": 2.0}},
+    )
+
+    assert response.status_code == 422
+
+
 def test_enabled_worker_processes_idea_job_and_updates_project(tmp_path: Path) -> None:
     _, project = _client(tmp_path)
     gateway = AiGateway(

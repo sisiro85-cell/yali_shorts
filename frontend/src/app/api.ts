@@ -355,6 +355,20 @@ export const apiClient = {
       body: JSON.stringify(options),
     });
   },
+  async previewTTS(projectId: string, cutId: string): Promise<JobAccepted> {
+    return requestJson(`/projects/${projectId}/tts/preview`, {
+      method: "POST",
+      headers: { "Idempotency-Key": createIdempotencyKey("tts-preview") },
+      body: JSON.stringify({ cut_id: cutId }),
+    });
+  },
+  async generateTTS(projectId: string, cutId: string): Promise<JobAccepted> {
+    return requestJson(`/projects/${projectId}/tts/generate`, {
+      method: "POST",
+      headers: { "Idempotency-Key": createIdempotencyKey("tts") },
+      body: JSON.stringify({ cut_id: cutId }),
+    });
+  },
   async lockCut(projectId: string, cutId: string): Promise<CutLockResponse> {
     return requestJson(`/projects/${projectId}/cuts/${cutId}/lock`, { method: "POST" });
   },

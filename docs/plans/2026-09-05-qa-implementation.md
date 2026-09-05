@@ -217,6 +217,7 @@ def test_rejected_render_does_not_create_a_variant(tmp_path):
 - [x] `GET /api/jobs/{job_id}`로 새로고침·화면 전환 후에도 단일 작업의 현재 상태를 다시 조회할 수 있게 한다.
 - [x] TTSProvider의 Edge TTS 입력 변환은 외부 호출과 분리된 fake stream 테스트로 검증한다.
 - [x] 생성 오디오 asset 파일명은 Windows 경로 길이를 넘지 않으며, 오디오 미리듣기 URL이 저장 파일을 반환하는지 검증한다.
+- [x] 같은 컷의 TTS preview/generate 작업이 동시에 queued/running이면 기존 작업을 반환하고, 작업 payload에 내레이션·활성 버전·음성 설정을 스냅샷한다.
 - [ ] 디자인 화면에서도 기존 이미지 버전 복원을 재사용한다. UI 추가는 시안 승인 후 진행한다.
 
 **통과 조건:** 서로 다른 두 컷을 동시에 접수해 둘 다 올바르게 저장된다. 같은 컷 중복 실행 없음, 다른 컷 편집 유지, 잠금 우선, 실패/취소 후 기존 이미지 유지, 새로고침 후 실제 상태 복원. 외부 API 없이 지연 fake 시험으로 반복 재현한다.

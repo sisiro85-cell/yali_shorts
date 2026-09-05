@@ -5,14 +5,23 @@ from collections.abc import Mapping
 from uuid import UUID
 
 from yali.ai.gateway import AiGateway
-from yali.ai.protocols import GenerationMetadata, ImageGenerationRequest, ImageProvider, Operation
+from yali.ai.protocols import (
+    GenerationMetadata,
+    ImageGenerationRequest,
+    ImageProvider,
+    Operation,
+    TTSGenerationRequest,
+    TTSProvider,
+)
 from yali.content.service import apply_cut_regeneration
 from yali.domain.commands import RegenerateOptions
-from yali.domain.models import IdeaDraft, IdeaVersion, Project
+from yali.domain.models import Cut, IdeaDraft, IdeaVersion, Project
+from yali.domain.video_settings import TTSSettings, merge_video_settings
 from yali.jobs.models import QueuedJob
 from yali.jobs.queue import JobNotFoundError, PersistentJobQueue
 from yali.ai.providers.codex_image import CodexImageError
 from yali.media.generator import GeneratedCutVisual, attach_generated_cut_visual
+from yali.media.audio import GeneratedCutAudio, attach_generated_cut_audio
 from yali.media.render_client import RenderWorkerClient
 from yali.media.aspect import target_aspect_ratio_for_project
 from yali.rendering.manifest import OutputManifest
@@ -36,12 +45,14 @@ class JobProcessor:
         gateway: AiGateway,
         *,
         image_provider: ImageProvider | None = None,
+        tts_provider: TTSProvider | None = None,
         queue: PersistentJobQueue | None = None,
         render_client: RenderWorkerClient | None = None,
     ) -> None:
         self.store = store
         self.gateway = gateway
         self.image_provider = image_provider
+        self.tts_provider = tts_provider
         self.queue = queue
         self.render_client = render_client
 
@@ -51,6 +62,9 @@ class JobProcessor:
             return
         if job.kind == "cut.regenerate":
             self._process_cut_regeneration(job)
+            return
+        if job.kind in {"tts.preview", "tts.generate"}:
+            self._process_tts(job)
             return
         if job.kind == "output.render":
             self._process_output_render(job)
@@ -335,6 +349,120 @@ class JobProcessor:
             )
             raise JobProcessingError("Cut image generation failed", public_message=message) from None
 
+    def _process_tts(self, job: QueuedJob) -> None:
+        if self.tts_provider is None:
+            raise JobProcessingError(
+                "TTS provider is not configured",
+                public_message="음성 생성 Provider가 설정되지 않았습니다.",
+            )
+        cut_id = job.cut_id
+        if cut_id is None:
+            raise JobProcessingError("TTS job is missing a cut") from None
+        try:
+            snapshot_settings = TTSSettings.model_validate(job.payload.get("audio_settings", {}))
+            narration_text = _required_text(job.payload.get("narration_text"))
+            expected_active_version_id = _uuid_from_payload(job.payload.get("active_version_id"))
+        except ValueError:
+            raise JobProcessingError("TTS job payload is invalid") from None
+
+        project = self.store.get(job.project_id)
+        cut = _find_cut(project, cut_id)
+        if cut is None:
+            raise CutNotFoundError(f"Cut not found in project {project.id}: {cut_id}")
+        try:
+            _ensure_tts_snapshot(cut, project, narration_text, snapshot_settings, expected_active_version_id)
+        except CutLockedError as error:
+            raise JobProcessingError(
+                "Cut is locked",
+                public_message="잠긴 컷은 음성을 생성할 수 없습니다.",
+            ) from error
+        except ProjectRevisionConflict as error:
+            raise JobProcessingError(
+                "TTS request is stale",
+                public_message="음성 생성 요청의 대본 또는 설정이 변경되었습니다. 다시 시도해 주세요.",
+            ) from error
+        if snapshot_settings.provider != self.tts_provider.name:
+            raise JobProcessingError(
+                "TTS provider is unavailable",
+                public_message="선택한 음성 엔진을 현재 사용할 수 없습니다.",
+            )
+        if not snapshot_settings.enabled:
+            raise JobProcessingError(
+                "TTS is disabled",
+                public_message="현재 컷의 TTS가 꺼져 있습니다.",
+            )
+        if self._job_is_cancelled(job.id):
+            return
+
+        try:
+            response = self.tts_provider.generate(
+                TTSGenerationRequest(
+                    text=narration_text,
+                    language=snapshot_settings.language,
+                    voice_id=snapshot_settings.voice_id,
+                    speed=snapshot_settings.speed,
+                    volume=snapshot_settings.volume,
+                    pitch=snapshot_settings.pitch,
+                    metadata=GenerationMetadata(
+                        request_id=str(job.id),
+                        project_id=str(project.id),
+                        cut_id=str(cut.id),
+                        operation=Operation.GENERATE_TTS,
+                        model=None,
+                    ),
+                )
+            )
+        except Exception as error:
+            message = _tts_generation_error(error)
+            raise JobProcessingError("TTS generation failed", public_message=message) from None
+        if self._job_is_cancelled(job.id):
+            return
+
+        generated_audio: list[GeneratedCutAudio] = []
+        try:
+            def attach_audio(current: Project, current_cut: Cut) -> None:
+                _ensure_tts_snapshot(
+                    current_cut,
+                    current,
+                    narration_text,
+                    snapshot_settings,
+                    expected_active_version_id,
+                )
+                generated_audio.append(
+                    attach_generated_cut_audio(
+                        current,
+                        current_cut,
+                        self.store.projects_root / str(current.id) / "assets",
+                        content=response.content,
+                        media_type=response.media_type,
+                    )
+                )
+
+            self.store.update_cut_if_current(
+                job.project_id,
+                cut_id,
+                expected_active_version_id=expected_active_version_id,
+                update=attach_audio,
+                guard=lambda: not self._job_is_cancelled(job.id),
+            )
+        except ProjectRevisionConflict as error:
+            _discard_generated_audio(generated_audio)
+            if self._job_is_cancelled(job.id):
+                return
+            raise JobProcessingError(
+                "TTS result is stale",
+                public_message="음성 생성 중 컷의 대본 또는 음성 설정이 변경되었습니다. 다시 시도해 주세요.",
+            ) from error
+        except CutLockedError as error:
+            _discard_generated_audio(generated_audio)
+            raise JobProcessingError(
+                "Cut is locked",
+                public_message="잠긴 컷은 음성을 생성할 수 없습니다.",
+            ) from error
+        except Exception as error:
+            _discard_generated_audio(generated_audio)
+            raise JobProcessingError("TTS asset persistence failed") from error
+
     def _process_output_render(self, job: QueuedJob) -> None:
         if self.render_client is None:
             raise JobProcessingError("Render worker is not configured") from None
@@ -459,6 +587,60 @@ def _text(value: object, fallback: str) -> str:
     return fallback.strip()[:5_000] or "새 콘텐츠 아이디어"
 
 
+def _find_cut(project: Project, cut_id: UUID) -> Cut | None:
+    return next(
+        (cut for scene in project.scenes for cut in scene.cuts if cut.id == cut_id),
+        None,
+    )
+
+
+def _required_text(value: object) -> str:
+    if isinstance(value, str) and value.strip():
+        return value.strip()[:5_000]
+    raise ValueError("TTS narration text is missing")
+
+
+def _uuid_from_payload(value: object) -> UUID | None:
+    if value is None:
+        return None
+    if isinstance(value, UUID):
+        return value
+    if isinstance(value, str):
+        try:
+            return UUID(value)
+        except ValueError:
+            pass
+    raise ValueError("TTS active version is invalid")
+
+
+def _ensure_tts_snapshot(
+    cut: Cut,
+    project: Project,
+    narration_text: str,
+    audio_settings: TTSSettings,
+    expected_active_version_id: UUID | None,
+) -> None:
+    if cut.locked:
+        raise CutLockedError(f"Cut is locked: {cut.id}")
+    if cut.active_version_id != expected_active_version_id:
+        raise ProjectRevisionConflict(f"Cut changed before TTS update: {cut.id}")
+    current_version = _active_version(cut)
+    current_text = current_version.narration_text if current_version is not None else cut.narration_text
+    if current_text.strip() != narration_text:
+        raise ProjectRevisionConflict(f"Cut narration changed before TTS update: {cut.id}")
+    current_settings = merge_video_settings(project.video_settings, cut.video_settings_overrides).audio
+    if current_settings != audio_settings:
+        raise ProjectRevisionConflict(f"Cut audio settings changed before TTS update: {cut.id}")
+
+
+def _active_version(cut: Cut):
+    if not cut.versions:
+        return None
+    if cut.active_version_id is None:
+        return cut.versions[-1]
+    return next((version for version in cut.versions if version.id == cut.active_version_id), None)
+
+
 def _key_points(value: object) -> list[str]:
     if not isinstance(value, list):
         return []
@@ -513,3 +695,15 @@ def _discard_generated_visuals(visuals: list[GeneratedCutVisual]) -> None:
     for visual in visuals:
         if visual.created:
             visual.path.unlink(missing_ok=True)
+
+
+def _discard_generated_audio(audio_files: list[GeneratedCutAudio]) -> None:
+    for audio in audio_files:
+        if audio.created:
+            audio.path.unlink(missing_ok=True)
+
+
+def _tts_generation_error(error: Exception) -> str:
+    if isinstance(error, ValueError):
+        return "음성 생성 결과를 확인할 수 없습니다."
+    return "음성 생성에 실패했습니다. Edge TTS 연결을 확인해 주세요."

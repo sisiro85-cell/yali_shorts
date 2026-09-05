@@ -11,8 +11,9 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from yali.ai.config import AiSettings
 from yali.ai.gateway import GatewayFactory
 from yali.ai.providers.codex_image import CodexImageProvider
+from yali.ai.providers.edge_tts import EdgeTTSProvider
 from yali.api.errors import ApiValidationError, IdeaJobStateError
-from yali.api.dependencies import ImageProviderFactory, ProviderFactory
+from yali.api.dependencies import ImageProviderFactory, ProviderFactory, TTSProviderFactory
 from yali.api.routes.cuts import router as cuts_router
 from yali.api.routes.health import router as health_router
 from yali.api.routes.ideas import router as ideas_router
@@ -22,6 +23,7 @@ from yali.api.routes.outputs import router as outputs_router
 from yali.api.routes.projects import router as projects_router
 from yali.api.routes.scripts import router as scripts_router
 from yali.api.routes.settings import router as settings_router
+from yali.api.routes.tts import router as tts_router
 from yali.api.routes.video_settings import router as video_settings_router
 from yali.jobs.queue import JobIdempotencyConflict, JobNotFoundError, JobQueueDataError, JobQueueStorageError, PersistentJobQueue
 from yali.jobs.processor import JobProcessor
@@ -44,6 +46,7 @@ def create_app(
     data_root: Path | None = None,
     provider_factory: ProviderFactory | None = None,
     image_provider_factory: ImageProviderFactory | None = None,
+    tts_provider_factory: TTSProviderFactory | None = None,
     enable_worker: bool | None = None,
 ) -> FastAPI:
     """Create the Yali Short-form Studio API application."""
@@ -59,6 +62,7 @@ def create_app(
                     application.state.project_store,
                     application.state.ai_gateway,
                     image_provider=application.state.image_provider,
+                    tts_provider=application.state.tts_provider,
                     queue=application.state.job_queue,
                     render_client=application.state.render_client,
                 ),
@@ -90,6 +94,10 @@ def create_app(
         if image_provider_factory is not None
         else CodexImageProvider(model=app.state.ai_settings.codex_model)
     )
+    app.state.tts_provider_factory = tts_provider_factory
+    app.state.tts_provider = (
+        tts_provider_factory() if tts_provider_factory is not None else EdgeTTSProvider()
+    )
     app.state.job_runner = None
     app.add_middleware(
         CORSMiddleware,
@@ -108,6 +116,7 @@ def create_app(
     app.include_router(outputs_router, prefix="/api")
     app.include_router(video_settings_router, prefix="/api")
     app.include_router(settings_router, prefix="/api")
+    app.include_router(tts_router, prefix="/api")
     app.include_router(jobs_router, prefix="/api")
     return app
 

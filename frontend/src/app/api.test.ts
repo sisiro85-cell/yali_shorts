@@ -80,3 +80,29 @@ test("작업 상태를 단일 작업 API로 조회한다", async () => {
     expect.objectContaining({ headers: { "Content-Type": "application/json" } }),
   );
 });
+
+test("컷 TTS 미리듣기와 생성을 작업 큐에 등록한다", async () => {
+  const fetchMock = vi.fn(() => Promise.resolve(new Response(JSON.stringify({ job_id: "tts-job-1", status: "queued" }), { status: 202 })));
+  vi.stubGlobal("fetch", fetchMock);
+
+  await apiClient.previewTTS("project-1", "cut-1");
+  await apiClient.generateTTS("project-1", "cut-1");
+
+  expect(fetchMock).toHaveBeenNthCalledWith(
+    1,
+    expect.stringContaining("/projects/project-1/tts/preview"),
+    expect.objectContaining({ method: "POST", body: JSON.stringify({ cut_id: "cut-1" }) }),
+  );
+  expect(fetchMock).toHaveBeenNthCalledWith(
+    2,
+    expect.stringContaining("/projects/project-1/tts/generate"),
+    expect.objectContaining({ method: "POST", body: JSON.stringify({ cut_id: "cut-1" }) }),
+  );
+  const previewCall = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+  const generateCall = fetchMock.mock.calls[1] as unknown as [string, RequestInit];
+  const previewHeaders = new Headers(previewCall[1].headers);
+  const generateHeaders = new Headers(generateCall[1].headers);
+  expect(previewHeaders.get("Idempotency-Key")).toBeTruthy();
+  expect(generateHeaders.get("Idempotency-Key")).toBeTruthy();
+  expect(previewHeaders.get("Idempotency-Key")).not.toBe(generateHeaders.get("Idempotency-Key"));
+});

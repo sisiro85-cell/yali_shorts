@@ -12,6 +12,7 @@ from pydantic import ValidationError
 
 from yali.domain.commands import RegenerateOptions
 from yali.domain.models import utc_now
+from yali.domain.video_settings import merge_video_settings
 from yali.jobs.models import JobStatus, QueuedJob
 from yali.storage.atomic_json import StorageUnavailableError, write_json_atomic
 from yali.storage.project_store import CutLockedError, CutNotFoundError, ProjectStore
@@ -35,6 +36,10 @@ class JobStateConflict(Exception):
 
 class JobIdempotencyConflict(Exception):
     """Raised when a retry key is reused for a different request payload."""
+
+
+class TTSInputError(Exception):
+    """Raised when a cut cannot provide text for a TTS job."""
 
 
 _JOB_QUEUE_THREAD_LOCK = RLock()
@@ -187,6 +192,85 @@ class PersistentJobQueue:
                 self._jobs = updated_jobs
                 return job
         except OSError as error:
+                raise JobQueueStorageError(f"Unable to persist jobs queue: {error}") from error
+
+    def enqueue_tts(
+        self,
+        project_id: UUID,
+        cut_id: UUID,
+        *,
+        kind: str,
+        idempotency_key: str,
+    ) -> QueuedJob:
+        """Queue one TTS request with the cut text/settings captured atomically."""
+        project = self.project_store.get(project_id)
+        cut = next(
+            (item for scene in project.scenes for item in scene.cuts if item.id == cut_id),
+            None,
+        )
+        if cut is None:
+            raise CutNotFoundError(f"Cut not found in project {project_id}: {cut_id}")
+        if cut.locked:
+            raise CutLockedError(f"Cut is locked: {cut_id}")
+        version = _active_cut_version(cut)
+        narration_text = version.narration_text if version is not None else cut.narration_text
+        if not narration_text.strip():
+            raise TTSInputError(f"Cut has no narration text: {cut_id}")
+        audio_settings = merge_video_settings(project.video_settings, cut.video_settings_overrides).audio
+        payload = {
+            "project_id": str(project_id),
+            "cut_id": str(cut_id),
+            "project_updated_at": project.updated_at.isoformat(),
+            "active_version_id": str(cut.active_version_id) if cut.active_version_id else None,
+            "narration_text": narration_text,
+            "audio_settings": audio_settings.model_dump(mode="json"),
+        }
+        payload_hash = _payload_fingerprint(payload)
+        try:
+            with _JOB_QUEUE_THREAD_LOCK, _JobFileLock(Path(f"{self.path}.lock")):
+                current_jobs = self._load_unlocked()
+                self._jobs = current_jobs
+                existing = next(
+                    (
+                        job
+                        for job in current_jobs
+                        if job.project_id == project_id
+                        and job.cut_id == cut_id
+                        and job.kind == kind
+                        and job.idempotency_key == idempotency_key
+                    ),
+                    None,
+                )
+                if existing is not None:
+                    if _stored_payload_hash(existing) != payload_hash:
+                        raise JobIdempotencyConflict("Idempotency key was reused for another payload")
+                    return existing
+                active = next(
+                    (
+                        job
+                        for job in current_jobs
+                        if job.project_id == project_id
+                        and job.cut_id == cut_id
+                        and job.kind in {"tts.preview", "tts.generate"}
+                        and job.status in {"queued", "running"}
+                    ),
+                    None,
+                )
+                if active is not None:
+                    return active
+                job = QueuedJob(
+                    project_id=project_id,
+                    cut_id=cut_id,
+                    kind=kind,
+                    idempotency_key=idempotency_key,
+                    payload=payload,
+                    payload_hash=payload_hash,
+                )
+                updated_jobs = [*current_jobs, job]
+                self._save(updated_jobs)
+                self._jobs = updated_jobs
+                return job
+        except OSError as error:
             raise JobQueueStorageError(f"Unable to persist jobs queue: {error}") from error
 
     def get(self, job_id: UUID) -> QueuedJob:
@@ -300,3 +384,11 @@ def _payload_fingerprint(payload: dict[str, object]) -> str:
 
 def _stored_payload_hash(job: QueuedJob) -> str:
     return job.payload_hash or _payload_fingerprint(job.payload)
+
+
+def _active_cut_version(cut):
+    if not cut.versions:
+        return None
+    if cut.active_version_id is None:
+        return cut.versions[-1]
+    return next((version for version in cut.versions if version.id == cut.active_version_id), None)

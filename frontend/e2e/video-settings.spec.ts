@@ -99,6 +99,21 @@ test("영상 설정을 컷 미리보기와 함께 수정하고 저장한다", as
   await page.goto(`/projects/${projectId}/video-settings`);
   await expect(page.getByRole("heading", { name: "음성·자막 설정" })).toBeVisible();
   await expect(page.getByRole("img", { name: "컷 1 미리보기" })).toBeVisible();
+  const subtitleLayout = await page.locator(".video-settings-preview__subtitle").evaluate((element) => {
+    const computed = getComputedStyle(element);
+    const canvas = element.parentElement?.getBoundingClientRect();
+    const subtitle = element.getBoundingClientRect();
+    const lineHeight = Number.parseFloat(computed.lineHeight);
+    const padding = Number.parseFloat(computed.paddingTop) + Number.parseFloat(computed.paddingBottom);
+    return {
+      clientHeight: element.clientHeight,
+      minimumTwoLineHeight: lineHeight * 2 + padding,
+      subtitleBottom: subtitle.bottom,
+      safeBottom: canvas ? canvas.bottom - canvas.height * 0.07 : 0,
+    };
+  });
+  expect(subtitleLayout.clientHeight).toBeGreaterThanOrEqual(subtitleLayout.minimumTwoLineHeight - 1);
+  expect(subtitleLayout.subtitleBottom).toBeLessThanOrEqual(subtitleLayout.safeBottom + 1);
 
   await page.getByRole("slider", { name: "말하기 속도" }).fill("1.2");
   await page.getByLabel("자막 글꼴").selectOption("SUIT");

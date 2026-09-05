@@ -247,7 +247,8 @@
 }
 
 .video-settings-preview__subtitle--bottom {
-  top: 83%;
+  bottom: 8%;
+  transform: translateX(-50%);
 }
 
 .video-settings-preview__subtitle--custom {

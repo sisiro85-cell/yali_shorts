@@ -342,7 +342,6 @@ export function VideoSettingsPage({ projectId }: { projectId: string }) {
     fontFamily: style.font_family,
     fontSize: `${Math.max(12, Math.min(30, style.font_size / 3.5))}px`,
     textAlign: style.alignment,
-    maxHeight: `${style.max_lines * 1.35}em`,
     display: "-webkit-box",
     WebkitBoxOrient: "vertical",
     WebkitLineClamp: style.max_lines,

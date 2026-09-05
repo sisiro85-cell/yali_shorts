@@ -130,8 +130,11 @@ npm --prefix frontend run build
 npm --prefix frontend run lint
 npm --prefix frontend run unit
 npm --prefix frontend run e2e
+npm --prefix frontend run integration
 npm --prefix render-worker run build
 npm --prefix render-worker run lint
 npm --prefix render-worker run unit
 npx --yes hyperframes@0.8.26 check <composition-dir> --json --at-transitions
 ```
+
+`e2e`는 화면과 모의 API 흐름을 검사하고, `integration`은 테스트 전용 FastAPI·영속 JSON 저장소·fake provider를 실제로 연결해 브라우저 흐름을 검사합니다. 실 Codex 구독, 사용자 `storage`, 실제 렌더러는 자동 QA에서 호출하지 않습니다. GitHub Actions의 `QA` workflow는 Windows 환경에서 두 범위를 구분해 실행합니다.

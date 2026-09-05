@@ -7,8 +7,9 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "tsc --noEmit",
-    "unit": "vitest run --passWithNoTests",
-    "e2e": "playwright test --pass-with-no-tests"
+    "unit": "vitest run",
+    "e2e": "playwright test",
+    "integration": "playwright test --config=playwright.integration.config.ts"
   },
   "dependencies": {
     "@phosphor-icons/react": "2.1.10",

@@ -88,8 +88,15 @@ test("영상 설정을 컷 미리보기와 함께 수정하고 저장한다", as
     contentType: "image/svg+xml",
     body: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 9 16\"><rect width=\"9\" height=\"16\" fill=\"#806d5f\"/><circle cx=\"4.5\" cy=\"7\" r=\"2\" fill=\"#fff\"/></svg>",
   }));
+  await page.route(`**/api/projects/${projectId}`, async (route) => {
+    if (route.request().method() === "PATCH") {
+      await route.fulfill({ json: { id: projectId, title: board.project_title, stage: "output", status: "output" } });
+      return;
+    }
+    await route.continue();
+  });
 
-  await page.goto(`/projects/${projectId}/design/settings`);
+  await page.goto(`/projects/${projectId}/video-settings`);
   await expect(page.getByRole("heading", { name: "음성·자막 설정" })).toBeVisible();
   await expect(page.getByRole("img", { name: "컷 1 미리보기" })).toBeVisible();
 
@@ -110,6 +117,10 @@ test("영상 설정을 컷 미리보기와 함께 수정하고 저장한다", as
     expect(layout.documentWidth).toBeLessThanOrEqual(layout.viewport + 1);
   }
   await page.screenshot({ path: "test-results/video-settings-mobile.png", fullPage: true });
+
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.getByRole("button", { name: "다음: 출력으로 이동" }).click();
+  await expect(page).toHaveURL(`/projects/${projectId}/output`);
 });
 
 test("컷별 예외는 변경 필드만 저장하고 기본값으로 되돌릴 수 있다", async ({ page }) => {

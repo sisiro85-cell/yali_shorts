@@ -13,9 +13,10 @@ const checklistRows = [
   ["대본", "대본 확정"],
   ["컷 구성", "컷별 이미지와 자막 구성"],
   ["디자인", "자막 스타일 및 레이아웃"],
+  ["영상 설정", "음성·자막 및 출력 미리보기"],
   ["출력", "출력 형식 설정 후 렌더링"],
 ] as const;
-const stageIndexes = { idea: 0, script: 1, cuts: 2, design: 3, output: 4, completed: 5, failed: -1 } as const;
+const stageIndexes = { idea: 0, script: 1, cuts: 2, design: 3, video_settings: 4, output: 5, completed: 6, failed: -1 } as const;
 
 export function HomePage() {
   const [projects, setProjects] = useState<ProjectSummary[]>([]); const [jobs, setJobs] = useState<JobSummary[]>([]); const [selectedProject, setSelectedProject] = useState<ProjectSummary | null>(null); const [isLoading, setIsLoading] = useState(true); const [error, setError] = useState<string | null>(null); const [panelOpen, setPanelOpen] = useState(true); const [notice, setNotice] = useState(""); const [isCreatingProject, setIsCreatingProject] = useState(false); const [projectToDelete, setProjectToDelete] = useState<ProjectSummary | null>(null); const [isDeletingProject, setIsDeletingProject] = useState(false);

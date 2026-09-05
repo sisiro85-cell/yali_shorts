@@ -65,7 +65,7 @@ test("renders each cut image and provides per-cut generation actions", () => {
       isLoading={false}
       error=""
       onRegenerate={onRegenerate}
-      onContinueToOutput={vi.fn()}
+      onContinueToVideoSettings={vi.fn()}
       onBackToCuts={vi.fn()}
     />,
   );
@@ -91,7 +91,7 @@ test("shows the image action before the detailed settings", () => {
       isLoading={false}
       error=""
       onRegenerate={vi.fn()}
-      onContinueToOutput={vi.fn()}
+      onContinueToVideoSettings={vi.fn()}
       onBackToCuts={vi.fn()}
     />,
   );
@@ -114,7 +114,7 @@ test("provides a top action for generating every missing cut image", () => {
       error=""
       onRegenerate={vi.fn()}
       onGenerateAll={onGenerateAll}
-      onContinueToOutput={vi.fn()}
+      onContinueToVideoSettings={vi.fn()}
       onBackToCuts={vi.fn()}
     />,
   );
@@ -135,7 +135,7 @@ test("provides an entry point for project voice and subtitle settings", () => {
       error=""
       onRegenerate={vi.fn()}
       onOpenVideoSettings={onOpenVideoSettings}
-      onContinueToOutput={vi.fn()}
+      onContinueToVideoSettings={vi.fn()}
       onBackToCuts={vi.fn()}
     />,
   );
@@ -166,7 +166,7 @@ test("places every cut in one grid while keeping its scene context", () => {
       isLoading={false}
       error=""
       onRegenerate={vi.fn()}
-      onContinueToOutput={vi.fn()}
+      onContinueToVideoSettings={vi.fn()}
       onBackToCuts={vi.fn()}
     />,
   );
@@ -178,8 +178,8 @@ test("places every cut in one grid while keeping its scene context", () => {
   expect(screen.getByText("씬 2 · 해결")).toBeInTheDocument();
 });
 
-test("allows moving to output after every cut image is ready", () => {
-  const onContinueToOutput = vi.fn();
+test("allows moving to video settings after every cut image is ready", () => {
+  const onContinueToVideoSettings = vi.fn();
   const completeBoard: CutBoardData = {
     ...board,
     scenes: board.scenes.map((scene) => ({
@@ -195,13 +195,13 @@ test("allows moving to output after every cut image is ready", () => {
       isLoading={false}
       error=""
       onRegenerate={vi.fn()}
-      onContinueToOutput={onContinueToOutput}
+      onContinueToVideoSettings={onContinueToVideoSettings}
       onBackToCuts={vi.fn()}
     />,
   );
 
-  fireEvent.click(screen.getByRole("button", { name: "출력으로 이동" }));
-  expect(onContinueToOutput).toHaveBeenCalledTimes(1);
+  fireEvent.click(screen.getByRole("button", { name: "영상 설정으로 이동" }));
+  expect(onContinueToVideoSettings).toHaveBeenCalledTimes(1);
 });
 
 test("keeps the next-stage action unavailable until every cut has an image", () => {
@@ -212,13 +212,13 @@ test("keeps the next-stage action unavailable until every cut has an image", () 
       isLoading={false}
       error=""
       onRegenerate={vi.fn()}
-      onContinueToOutput={vi.fn()}
+      onContinueToVideoSettings={vi.fn()}
       onBackToCuts={vi.fn()}
     />,
   );
 
-  expect(screen.getByRole("button", { name: "출력으로 이동" })).toBeDisabled();
-  expect(screen.getByText("모든 컷 이미지를 생성하면 출력 단계로 이동할 수 있습니다.")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "영상 설정으로 이동" })).toBeDisabled();
+  expect(screen.getByText("모든 컷 이미지를 생성하면 영상 설정 단계로 이동할 수 있습니다.")).toBeInTheDocument();
 });
 
 test("marks a generated image whose dimensions do not match the output canvas", () => {
@@ -243,12 +243,12 @@ test("marks a generated image whose dimensions do not match the output canvas", 
       error=""
       onRegenerate={vi.fn()}
       onGenerateAll={vi.fn()}
-      onContinueToOutput={vi.fn()}
+      onContinueToVideoSettings={vi.fn()}
       onBackToCuts={vi.fn()}
     />,
   );
 
   expect(screen.getByText("출력 비율 9:16과 맞지 않습니다. 이미지 재생성이 필요합니다.")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "이미지 전체 생성" })).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "출력으로 이동" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "영상 설정으로 이동" })).toBeDisabled();
 });

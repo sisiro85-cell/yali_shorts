@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { FileText, Lightbulb, Sparkle } from "@phosphor-icons/react";
 import { apiClient, type CutBoardData, type CutBoardCut, type CutRegenerationOptions, type IdeaPageData, type JobSummary, type ScriptPageData, type ScriptVersionDraft, type WorkflowStage } from "../app/api";
-import { navigateTo, projectIdeaPath, projectStagePath, projectVideoSettingsPath } from "../app/navigation";
+import { navigateTo, projectIdeaPath, projectStagePath } from "../app/navigation";
 import { AppShell } from "../components/layout/AppShell";
 import { CutBoard } from "../features/cuts/CutBoard";
 import type { CutAction } from "../features/cuts/CutCard";
@@ -11,7 +11,7 @@ import { ScriptEditor } from "../features/script/ScriptEditor";
 export type StagePageStage = "script" | "cuts" | "design" | "output";
 
 const STAGE_LABELS: Record<StagePageStage, string> = { script: "대본", cuts: "컷 구성", design: "디자인", output: "출력" };
-const STAGE_NUMBERS: Record<StagePageStage, string> = { script: "2", cuts: "3", design: "4", output: "5" };
+const STAGE_NUMBERS: Record<StagePageStage, string> = { script: "2", cuts: "3", design: "4", output: "6" };
 
 function ScriptGuide() {
   return (
@@ -63,7 +63,7 @@ function DesignGuide() {
       <ol className="cut-guide__steps">
         <li><span>1</span><p>컷 구성에서 연결된 이미지와 컷별 정보를 확인합니다.</p></li>
         <li><span>2</span><p>프롬프트를 수정하면 해당 컷만 새 이미지로 생성할 수 있습니다.</p></li>
-        <li><span>3</span><p>모든 컷의 이미지가 준비되면 출력 단계로 이동합니다.</p></li>
+        <li><span>3</span><p>모든 컷의 이미지가 준비되면 영상 설정 단계로 이동합니다.</p></li>
       </ol>
       <div className="cut-guide__callout">
         <FileText size={19} aria-hidden="true" />
@@ -119,7 +119,7 @@ function StagePlaceholder({ projectId, stage, data }: { projectId: string; stage
   return (
     <div className="stage-placeholder">
       <div className="stage-placeholder__heading">
-        <span>{STAGE_NUMBERS[stage]} / 5</span>
+        <span>{STAGE_NUMBERS[stage]} / 6</span>
         <h1>{stageLabel} 단계</h1>
         <p>아이디어 결과가 다음 제작 단계로 연결되었습니다.</p>
       </div>
@@ -148,7 +148,7 @@ export function ScriptPage({ projectId, stage = "script" }: { projectId: string;
   const [isActivating, setIsActivating] = useState(false);
   const [isContinuingToCuts, setIsContinuingToCuts] = useState(false);
   const [isContinuingToDesign, setIsContinuingToDesign] = useState(false);
-  const [isContinuingToOutput, setIsContinuingToOutput] = useState(false);
+  const [isContinuingToVideoSettings, setIsContinuingToVideoSettings] = useState(false);
   const [isGeneratingAllImages, setIsGeneratingAllImages] = useState(false);
   const [bulkImageProgress, setBulkImageProgress] = useState<{ completed: number; total: number } | null>(null);
   const [activeCutAction, setActiveCutAction] = useState<{ cutId: string; kind: CutAction } | null>(null);
@@ -161,7 +161,7 @@ export function ScriptPage({ projectId, stage = "script" }: { projectId: string;
     setIsGenerating(false);
     setIsContinuingToCuts(false);
     setIsContinuingToDesign(false);
-    setIsContinuingToOutput(false);
+    setIsContinuingToVideoSettings(false);
     setIsGeneratingAllImages(false);
     setBulkImageProgress(null);
     setActiveCutAction(null);
@@ -333,17 +333,17 @@ export function ScriptPage({ projectId, stage = "script" }: { projectId: string;
     }
   }
 
-  async function handleContinueToOutput() {
-    setIsContinuingToOutput(true);
+  async function handleContinueToVideoSettings() {
+    setIsContinuingToVideoSettings(true);
     setError("");
     setNotice("");
     try {
-      await apiClient.updateProject(projectId, { stage: "output", status: "output" });
-      navigateTo(projectStagePath(projectId, "output"));
+      await apiClient.updateProject(projectId, { stage: "video_settings", status: "video_settings" });
+      navigateTo(projectStagePath(projectId, "video_settings"));
     } catch (reason: unknown) {
-      setError(reason instanceof Error ? reason.message : "출력 단계로 이동하지 못했습니다.");
+      setError(reason instanceof Error ? reason.message : "영상 설정 단계로 이동하지 못했습니다.");
     } finally {
-      setIsContinuingToOutput(false);
+      setIsContinuingToVideoSettings(false);
     }
   }
 
@@ -479,7 +479,7 @@ export function ScriptPage({ projectId, stage = "script" }: { projectId: string;
       quickStart={null}
       showQuickStart={false}
     >
-      {stage === "script" ? <ScriptEditor data={scriptData?.active_version ?? null} versions={scriptData?.versions} isLoading={isLoading} isGenerating={isGenerating} isSaving={isSaving} isActivating={isActivating} isContinuing={isContinuingToCuts} error={error} notice={notice} onGenerate={handleGenerate} onSave={handleSave} onActivate={handleActivate} onContinueToCuts={handleContinueToCuts} /> : stage === "cuts" ? <CutBoard data={cutData} isLoading={isLoading} isGenerating={isGenerating} isContinuing={isContinuingToDesign} error={error} notice={notice} onGenerate={handleGenerateCuts} onBackToIdeas={() => navigateTo(projectIdeaPath(projectId))} onContinueToDesign={handleContinueToDesign} busyCutId={busyCutId} busyCutAction={busyCutAction} onRegenerateCut={handleRegenerateCut} onToggleCutLock={handleToggleCutLock} onActivateCutVersion={handleActivateCutVersion} /> : stage === "design" ? <DesignBoard projectId={projectId} data={cutData} isLoading={isLoading} error={error} notice={notice} busyCutId={busyCutId} busyCutAction={busyCutAction} onRegenerate={handleRegenerateCut} onGenerateAll={handleGenerateAllImages} onOpenVideoSettings={() => navigateTo(projectVideoSettingsPath(projectId))} isGeneratingAll={isGeneratingAllImages} bulkProgress={bulkImageProgress} onBackToCuts={() => navigateTo(projectStagePath(projectId, "cuts"))} onContinueToOutput={handleContinueToOutput} isContinuing={isContinuingToOutput} /> : <StagePlaceholder projectId={projectId} stage={stage} data={ideaData} />}
+      {stage === "script" ? <ScriptEditor data={scriptData?.active_version ?? null} versions={scriptData?.versions} isLoading={isLoading} isGenerating={isGenerating} isSaving={isSaving} isActivating={isActivating} isContinuing={isContinuingToCuts} error={error} notice={notice} onGenerate={handleGenerate} onSave={handleSave} onActivate={handleActivate} onContinueToCuts={handleContinueToCuts} /> : stage === "cuts" ? <CutBoard data={cutData} isLoading={isLoading} isGenerating={isGenerating} isContinuing={isContinuingToDesign} error={error} notice={notice} onGenerate={handleGenerateCuts} onBackToIdeas={() => navigateTo(projectIdeaPath(projectId))} onContinueToDesign={handleContinueToDesign} busyCutId={busyCutId} busyCutAction={busyCutAction} onRegenerateCut={handleRegenerateCut} onToggleCutLock={handleToggleCutLock} onActivateCutVersion={handleActivateCutVersion} /> : stage === "design" ? <DesignBoard projectId={projectId} data={cutData} isLoading={isLoading} error={error} notice={notice} busyCutId={busyCutId} busyCutAction={busyCutAction} onRegenerate={handleRegenerateCut} onGenerateAll={handleGenerateAllImages} onOpenVideoSettings={() => void handleContinueToVideoSettings()} isGeneratingAll={isGeneratingAllImages} bulkProgress={bulkImageProgress} onBackToCuts={() => navigateTo(projectStagePath(projectId, "cuts"))} onContinueToVideoSettings={handleContinueToVideoSettings} isContinuing={isContinuingToVideoSettings} /> : <StagePlaceholder projectId={projectId} stage={stage} data={ideaData} />}
     </AppShell>
   );
 }

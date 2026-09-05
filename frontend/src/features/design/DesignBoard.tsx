@@ -18,7 +18,7 @@ interface DesignBoardProps {
   isGeneratingAll?: boolean;
   bulkProgress?: { completed: number; total: number } | null;
   onBackToCuts?: () => void;
-  onContinueToOutput?: () => void | Promise<void>;
+  onContinueToVideoSettings?: () => void | Promise<void>;
   isContinuing?: boolean;
 }
 
@@ -172,7 +172,7 @@ function countReadyImages(data: CutBoardData | null, targetAspectRatio: ImageAsp
   return data?.scenes.reduce((total, scene) => total + scene.cuts.filter((cut) => isImageReady(cut, targetAspectRatio)).length, 0) ?? 0;
 }
 
-export function DesignBoard({ projectId, data, isLoading = false, error, notice, busyCutId = null, busyCutAction = null, onRegenerate, onGenerateAll, onOpenVideoSettings, isGeneratingAll = false, bulkProgress = null, onBackToCuts, onContinueToOutput, isContinuing = false }: DesignBoardProps) {
+export function DesignBoard({ projectId, data, isLoading = false, error, notice, busyCutId = null, busyCutAction = null, onRegenerate, onGenerateAll, onOpenVideoSettings, isGeneratingAll = false, bulkProgress = null, onBackToCuts, onContinueToVideoSettings, isContinuing = false }: DesignBoardProps) {
   const totalCuts = countCuts(data);
   const targetAspectRatio = data?.target_aspect_ratio ?? "9:16";
   const readyImages = countReadyImages(data, targetAspectRatio);
@@ -196,7 +196,7 @@ export function DesignBoard({ projectId, data, isLoading = false, error, notice,
     <section className="design-board" aria-labelledby="design-board-title" aria-busy={isBusy}>
       <header className="design-board__heading">
         <div>
-          <span className="design-board__step">4 / 5</span>
+          <span className="design-board__step">4 / 6</span>
           <h1 id="design-board-title">디자인</h1>
           <p>컷별 이미지를 확인하고, 마음에 들지 않는 컷만 다시 생성합니다.</p>
         </div>
@@ -264,11 +264,11 @@ export function DesignBoard({ projectId, data, isLoading = false, error, notice,
 
       <div className="design-board__bottom-actions">
         {onBackToCuts ? <button className="button button--secondary" type="button" onClick={onBackToCuts}>컷 구성으로 돌아가기</button> : <span />}
-        {onContinueToOutput ? (
+        {onContinueToVideoSettings ? (
           <div className="design-board__next-action">
-            {!allImagesReady && hasCuts ? <span>모든 컷 이미지를 생성하면 출력 단계로 이동할 수 있습니다.</span> : null}
-            <button className="button button--primary" type="button" onClick={() => void onContinueToOutput()} disabled={!allImagesReady || isBusy || isContinuing} aria-busy={isContinuing}>
-              {isContinuing ? "출력으로 이동 중…" : "출력으로 이동"}
+            {!allImagesReady && hasCuts ? <span>모든 컷 이미지를 생성하면 영상 설정 단계로 이동할 수 있습니다.</span> : null}
+            <button className="button button--primary" type="button" onClick={() => void onContinueToVideoSettings()} disabled={!allImagesReady || isBusy || isContinuing} aria-busy={isContinuing}>
+              {isContinuing ? "영상 설정으로 이동 중…" : "영상 설정으로 이동"}
             </button>
           </div>
         ) : null}

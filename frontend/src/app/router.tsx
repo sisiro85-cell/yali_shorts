@@ -11,7 +11,7 @@ export function AppRouter() {
   if (ideaMatch) {
     return <IdeaPage projectId={ideaMatch[1]} />;
   }
-  const videoSettingsMatch = pathname.match(/^\/projects\/([^/]+)\/design\/settings$/);
+  const videoSettingsMatch = pathname.match(/^\/projects\/([^/]+)\/(?:video-settings|design\/settings)$/);
 
   if (videoSettingsMatch) {
     return <VideoSettingsPage projectId={videoSettingsMatch[1]} />;

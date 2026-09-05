@@ -479,6 +479,21 @@ def test_video_settings_get_returns_defaults(tmp_path: Path) -> None:
     assert response.json()["subtitle"]["style"]["position"] == "bottom"
 
 
+def test_project_can_persist_video_settings_as_a_workflow_stage(tmp_path: Path) -> None:
+    client, project = _client(tmp_path)
+
+    response = client.patch(
+        f"/api/projects/{project.id}",
+        json={"stage": "video_settings", "status": "video_settings"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["stage"] == "video_settings"
+    summary = client.get("/api/projects").json()["projects"][0]
+    assert summary["stage"] == "video_settings"
+    assert summary["progress"] == 85
+
+
 def test_video_settings_patch_merges_nested_values_and_persists(tmp_path: Path) -> None:
     client, project = _client(tmp_path)
 

@@ -18,6 +18,7 @@ _STAGE_PROGRESS = {
     ProjectStage.SCRIPT: 25,
     ProjectStage.CUTS: 50,
     ProjectStage.DESIGN: 75,
+    ProjectStage.VIDEO_SETTINGS: 85,
     ProjectStage.OUTPUT: 90,
     ProjectStage.COMPLETED: 100,
     ProjectStage.FAILED: 0,

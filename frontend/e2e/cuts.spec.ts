@@ -156,18 +156,18 @@ test("design stage renders the selected cut image and regenerates only that cut"
   await expect(page.getByRole("heading", { name: "디자인", exact: true })).toBeVisible();
   await expect(page.getByRole("img", { name: "컷 1 문제 제시 이미지" })).toHaveAttribute("src", /\/api\/projects\/.*\/assets\/asset-1\/preview/);
   await expect(page.getByText("이미지 생성 대기")).toBeVisible();
-  await expect(page.getByRole("button", { name: "출력으로 이동" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "영상 설정으로 이동" })).toBeDisabled();
 
   await page.getByRole("button", { name: "컷 2 이미지 생성" }).click();
 
   await expect(page.getByRole("img", { name: "컷 2 해결 방법 이미지" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "출력으로 이동" })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "영상 설정으로 이동" })).toBeEnabled();
   await expect(page.getByText("컷 2 이미지 재생성을 완료했습니다.")).toBeVisible();
   expect(regenerationPayload).toEqual({ image_only: true });
 
-  await page.getByRole("button", { name: "출력으로 이동" }).click();
-  expect(projectPatch).toEqual({ stage: "output", status: "output" });
-  await expect(page).toHaveURL(`/projects/${projectId}/output`);
+  await page.getByRole("button", { name: "영상 설정으로 이동" }).click();
+  expect(projectPatch).toEqual({ stage: "video_settings", status: "video_settings" });
+  await expect(page).toHaveURL(`/projects/${projectId}/video-settings`);
 });
 
 test("design stage generates every missing image from the top action", async ({ page }) => {

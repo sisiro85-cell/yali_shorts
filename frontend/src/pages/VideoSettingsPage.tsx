@@ -1,5 +1,5 @@
 import { useEffect, useState, type CSSProperties } from "react";
-import { ArrowLeft, FloppyDisk, Image as ImageIcon, Sparkle } from "@phosphor-icons/react";
+import { ArrowLeft, ArrowRight, FloppyDisk, Image as ImageIcon, Sparkle } from "@phosphor-icons/react";
 import {
   apiClient,
   resolveMediaUrl,
@@ -163,6 +163,7 @@ export function VideoSettingsPage({ projectId }: { projectId: string }) {
   const [settingsScope, setSettingsScope] = useState<"project" | "cut">("project");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isContinuingToOutput, setIsContinuingToOutput] = useState(false);
   const [pageError, setPageError] = useState("");
   const [notice, setNotice] = useState("");
 
@@ -242,8 +243,8 @@ export function VideoSettingsPage({ projectId }: { projectId: string }) {
     setNotice("");
   }
 
-  async function handleSave() {
-    if (!editingSettings || !isDirty) return;
+  async function saveSettings(showNotice = true): Promise<boolean> {
+    if (!editingSettings || !isDirty) return true;
     setIsSaving(true);
     setPageError("");
     setNotice("");
@@ -260,17 +261,40 @@ export function VideoSettingsPage({ projectId }: { projectId: string }) {
           delete next[activeCut.id];
           return next;
         });
-        setNotice("컷별 예외 설정을 저장했습니다.");
+        if (showNotice) setNotice("컷별 예외 설정을 저장했습니다.");
       } else {
         const saved = await apiClient.updateVideoSettings(projectId, editingSettings);
         setSavedSettings(saved);
         setDraft(saved);
-        setNotice("설정을 저장했습니다.");
+        if (showNotice) setNotice("설정을 저장했습니다.");
       }
+      return true;
     } catch (reason: unknown) {
       setPageError(reason instanceof Error ? reason.message : "영상 설정 저장에 실패했습니다.");
+      return false;
     } finally {
       setIsSaving(false);
+    }
+  }
+
+  async function handleSave() {
+    await saveSettings();
+  }
+
+  async function handleContinueToOutput() {
+    if (isContinuingToOutput) return;
+    setIsContinuingToOutput(true);
+    setPageError("");
+    setNotice("");
+    try {
+      const saved = await saveSettings(false);
+      if (!saved) return;
+      await apiClient.updateProject(projectId, { stage: "output", status: "output" });
+      navigateTo(projectStagePath(projectId, "output"));
+    } catch (reason: unknown) {
+      setPageError(reason instanceof Error ? reason.message : "출력 단계로 이동하지 못했습니다.");
+    } finally {
+      setIsContinuingToOutput(false);
     }
   }
 
@@ -298,7 +322,7 @@ export function VideoSettingsPage({ projectId }: { projectId: string }) {
   }
 
   const projectTitle = board?.project_title ?? "프로젝트";
-  const stage: WorkflowStage = "design";
+  const stage: WorkflowStage = "video_settings";
   const style = editingSettings?.subtitle.style;
   const previewStyle: CSSProperties | undefined = style ? {
     color: style.color,
@@ -321,7 +345,7 @@ export function VideoSettingsPage({ projectId }: { projectId: string }) {
       stage={stage}
       panelOpen
       onPanelOpenChange={() => undefined}
-      currentView="design"
+      currentView="video_settings"
       projectId={projectId}
       ideaProjectId={projectId}
       scriptProjectId={projectId}
@@ -332,7 +356,7 @@ export function VideoSettingsPage({ projectId }: { projectId: string }) {
       <div className="video-settings-page" aria-labelledby="video-settings-title">
         <header className="video-settings-page__heading">
           <div>
-            <span className="video-settings-page__step">디자인 단계 · 영상 설정</span>
+            <span className="video-settings-page__step">영상 설정 단계 · 음성·자막 설정</span>
             <h1 id="video-settings-title">음성·자막 설정</h1>
             <p>최종 영상에 사용할 음성과 자막 스타일을 확인하고 저장합니다.</p>
           </div>
@@ -442,7 +466,8 @@ export function VideoSettingsPage({ projectId }: { projectId: string }) {
               <button className="button button--secondary" type="button" onClick={() => navigateTo(projectStagePath(projectId, "design"))}><ArrowLeft size={16} aria-hidden="true" />디자인으로 돌아가기</button>
               <div className="video-settings-actions__group">
                 {settingsScope === "cut" ? <button className="button button--secondary" type="button" onClick={() => void handleResetCut()} disabled={isSaving || (!hasActiveCutOverride && !cutIsDirty)}>프로젝트 기본값으로 되돌리기</button> : null}
-                <button className="button button--primary" type="button" onClick={() => void handleSave()} disabled={!isDirty || isSaving} aria-busy={isSaving}><FloppyDisk size={16} aria-hidden="true" />{isSaving ? "저장 중…" : settingsScope === "cut" ? "컷 예외 저장" : "설정 저장"}</button>
+                <button className="button button--secondary" type="button" onClick={() => void handleSave()} disabled={!isDirty || isSaving || isContinuingToOutput} aria-busy={isSaving}><FloppyDisk size={16} aria-hidden="true" />{isSaving ? "저장 중…" : settingsScope === "cut" ? "컷 예외 저장" : "설정 저장"}</button>
+                <button className="button button--primary" type="button" onClick={() => void handleContinueToOutput()} disabled={isSaving || isContinuingToOutput} aria-busy={isContinuingToOutput}><ArrowRight size={16} aria-hidden="true" />{isContinuingToOutput ? "출력으로 이동 중…" : "다음: 출력으로 이동"}</button>
               </div>
             </footer>
           </>

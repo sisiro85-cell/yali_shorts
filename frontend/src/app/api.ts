@@ -1,4 +1,4 @@
-export type WorkflowStage = "idea" | "script" | "cuts" | "design" | "output" | "completed" | "failed";
+export type WorkflowStage = "idea" | "script" | "cuts" | "design" | "video_settings" | "output" | "completed" | "failed";
 export type IdeaFormat = "shorts" | "reels" | "card_news";
 export type ImageAspectRatio = "9:16" | "1:1";
 export type JobStatus = "queued" | "running" | "completed" | "failed" | "cancelled";

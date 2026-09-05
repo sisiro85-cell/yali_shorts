@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { apiClient } from "../app/api";
 import { VideoSettingsPage } from "./VideoSettingsPage";
 
@@ -13,6 +13,7 @@ vi.mock("../app/api", async () => {
       getVideoSettings: vi.fn(),
       updateVideoSettings: vi.fn(),
       updateCutVideoSettings: vi.fn(),
+      updateProject: vi.fn(),
     },
   };
 });
@@ -22,6 +23,7 @@ const mockedApi = apiClient as unknown as {
   getVideoSettings: ReturnType<typeof vi.fn>;
   updateVideoSettings: ReturnType<typeof vi.fn>;
   updateCutVideoSettings: ReturnType<typeof vi.fn>;
+  updateProject: ReturnType<typeof vi.fn>;
 };
 
 const board = {
@@ -121,6 +123,11 @@ beforeEach(() => {
     ...board.scenes[0].cuts.find((cut) => cut.id === cutId),
     video_settings_overrides: patch,
   }));
+  mockedApi.updateProject.mockResolvedValue({ id: "project-1", title: "자동화 뉴스 쇼츠", stage: "output", status: "output" });
+});
+
+afterEach(() => {
+  window.history.replaceState({}, "", "/");
 });
 
 test("컷 미리보기와 프로젝트 기본 음성·자막 설정을 표시한다", async () => {
@@ -181,4 +188,14 @@ test("선택한 컷 예외는 프로젝트 기본값에서 시작하고 변경 �
     { subtitle: { style: { position: "top" } } },
   ));
   expect(await screen.findByText("컷별 예외 설정을 저장했습니다.")).toBeInTheDocument();
+});
+
+test("presents video settings as step five and continues to output", async () => {
+  render(<VideoSettingsPage projectId="project-1" />);
+
+  expect(await screen.findByText("영상 설정 단계 · 음성·자막 설정")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "다음: 출력으로 이동" }));
+
+  await waitFor(() => expect(mockedApi.updateProject).toHaveBeenCalledWith("project-1", { stage: "output", status: "output" }));
+  expect(window.location.pathname).toBe("/projects/project-1/output");
 });

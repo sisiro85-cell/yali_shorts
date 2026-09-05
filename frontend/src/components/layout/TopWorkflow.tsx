@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { Bell, CaretDown, FileText, Lightbulb, Package, PaintBrush, Scissors, UserCircle } from "@phosphor-icons/react";
+import { Bell, CaretDown, FileText, Lightbulb, Package, PaintBrush, Scissors, SlidersHorizontal, UserCircle } from "@phosphor-icons/react";
 import { apiClient, type ProjectSummary, type WorkflowStage } from "../../app/api";
 import { navigateTo, projectStagePath } from "../../app/navigation";
 
-const workflow = [{ id: "idea", label: "아이디어", icon: Lightbulb }, { id: "script", label: "대본", icon: FileText }, { id: "cuts", label: "컷 구성", icon: Scissors }, { id: "design", label: "디자인", icon: PaintBrush }, { id: "output", label: "출력", icon: Package }] as const;
-const stageIndex: Record<WorkflowStage, number> = { idea: 0, script: 1, cuts: 2, design: 3, output: 4, completed: 5, failed: 0 };
-const stageLabels: Record<WorkflowStage, string> = { idea: "아이디어", script: "대본", cuts: "컷 구성", design: "디자인", output: "출력", completed: "완료", failed: "오류" };
+const workflow = [{ id: "idea", label: "아이디어", icon: Lightbulb }, { id: "script", label: "대본", icon: FileText }, { id: "cuts", label: "컷 구성", icon: Scissors }, { id: "design", label: "디자인", icon: PaintBrush }, { id: "video_settings", label: "영상 설정", icon: SlidersHorizontal }, { id: "output", label: "출력", icon: Package }] as const;
+const stageIndex: Record<WorkflowStage, number> = { idea: 0, script: 1, cuts: 2, design: 3, video_settings: 4, output: 5, completed: 6, failed: 0 };
+const stageLabels: Record<WorkflowStage, string> = { idea: "아이디어", script: "대본", cuts: "컷 구성", design: "디자인", video_settings: "영상 설정", output: "출력", completed: "완료", failed: "오류" };
 
 function projectProgressLabel(project: ProjectSummary) {
   if (project.stage === "completed") return "완료";

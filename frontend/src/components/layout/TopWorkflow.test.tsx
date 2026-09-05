@@ -70,3 +70,11 @@ test("loads the project list when a page does not provide it", async () => {
   expect(await screen.findByRole("option", { name: /다음 프로젝트/ })).toBeVisible();
   expect(apiClient.listProjects).toHaveBeenCalledTimes(1);
 });
+
+test("shows 영상 설정 as an independent workflow stage", () => {
+  render(<TopWorkflow projectName="현재 프로젝트" stage="video_settings" />);
+
+  expect(screen.getByText("영상 설정")).toBeInTheDocument();
+  expect(screen.getByText("출력")).toBeInTheDocument();
+  expect(document.querySelector('[aria-current="step"]')).toHaveTextContent("영상 설정");
+});

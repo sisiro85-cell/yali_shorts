@@ -1,9 +1,9 @@
-import { Archive, ChartBar, FileText, Folder, GearSix, GridFour, House, Image, Lightbulb, ListChecks, PaperPlaneTilt, Sparkle, SquaresFour, Tag, UserCircle, VideoCamera } from "@phosphor-icons/react";
+import { Archive, ChartBar, FileText, Folder, GearSix, GridFour, House, Image, Lightbulb, ListChecks, PaperPlaneTilt, SlidersHorizontal, Sparkle, SquaresFour, Tag, UserCircle, VideoCamera } from "@phosphor-icons/react";
 import type { Icon } from "@phosphor-icons/react";
 import { navigateTo, projectIdeaPath, projectScriptPath, projectStagePath } from "../../app/navigation";
 import type { WorkflowStage } from "../../app/api";
 
-export type RouteView = "home" | "idea" | "script" | "cuts" | "design" | "output";
+export type RouteView = "home" | "idea" | "script" | "cuts" | "design" | "video_settings" | "output";
 
 type NavigationItem = { label: string; icon: Icon; href: string; active?: boolean };
 type NavigationGroup = { label: string; items: NavigationItem[] };
@@ -23,6 +23,7 @@ function buildGroups(currentView: RouteView, projectId?: string, ideaProjectId?:
         { label: "대본", icon: FileText, href: scriptHref, active: currentView === "script" },
         { label: "스토리보드", icon: GridFour, href: stageHref("cuts", "#스토리보드"), active: currentView === "cuts" },
         { label: "디자인", icon: Sparkle, href: stageHref("design", "#디자인"), active: currentView === "design" },
+        { label: "영상 설정", icon: SlidersHorizontal, href: stageHref("video_settings", "#영상 설정"), active: currentView === "video_settings" },
         { label: "결과물", icon: Archive, href: stageHref("output", "#결과물"), active: currentView === "output" },
       ],
     },

@@ -49,13 +49,14 @@ export function projectScriptPath(projectId: string) {
 }
 
 export function projectVideoSettingsPath(projectId: string) {
-  return `/projects/${projectId}/design/settings`;
+  return `/projects/${projectId}/video-settings`;
 }
 
 export function projectStagePath(projectId: string, stage: WorkflowStage) {
   if (stage === "idea") return projectIdeaPath(projectId);
   if (stage === "script") return projectScriptPath(projectId);
   if (stage === "cuts" || stage === "design" || stage === "output") return `/projects/${projectId}/${stage}`;
+  if (stage === "video_settings") return projectVideoSettingsPath(projectId);
   if (stage === "completed") return `/projects/${projectId}/output`;
   return "/";
 }

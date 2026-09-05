@@ -6,6 +6,7 @@ class ProjectStatus(str, Enum):
     SCRIPT = "script"
     CUTS = "cuts"
     DESIGN = "design"
+    VIDEO_SETTINGS = "video_settings"
     OUTPUT = "output"
     COMPLETED = "completed"
     FAILED = "failed"

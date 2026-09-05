@@ -214,7 +214,7 @@ test("loads the cut board and renders cut images on the design stage", async () 
 
   await waitFor(() => expect(screen.getByRole("heading", { name: "디자인" })).toBeVisible());
   expect(screen.getByRole("img", { name: "컷 1 디자인 컷 이미지" })).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "출력으로 이동" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "영상 설정으로 이동" })).toBeEnabled();
 });
 
 test("generates every design image through parallel cut sessions", async () => {

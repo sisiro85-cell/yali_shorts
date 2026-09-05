@@ -53,6 +53,51 @@
   font-size: 12px;
 }
 
+.video-settings-scope-switcher {
+  display: inline-flex;
+  gap: 3px;
+  margin-top: 18px;
+  padding: 3px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--yali-radius-sm);
+  background: var(--color-surface-muted);
+}
+
+.video-settings-scope-switcher button {
+  min-height: 37px;
+  padding: 7px 12px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.video-settings-scope-switcher button:hover,
+.video-settings-scope-switcher button:focus-visible,
+.video-settings-scope-switcher button.is-selected {
+  border-color: var(--color-border-strong);
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+}
+
+.video-settings-scope-switcher button:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 1px;
+}
+
+.video-settings-scope-switcher button:disabled {
+  cursor: not-allowed;
+  opacity: .5;
+}
+
+.video-settings-scope-note {
+  margin: 10px 0 0;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+
 .video-settings-tabs {
   display: flex;
   gap: 18px;
@@ -413,6 +458,13 @@
   margin-top: 20px;
 }
 
+.video-settings-actions__group {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
 .video-settings-guide {
   min-height: 100%;
   padding: 43px 28px 28px;
@@ -580,6 +632,11 @@
   .video-settings-actions {
     align-items: stretch;
     flex-direction: column-reverse;
+  }
+
+  .video-settings-actions__group {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .video-settings-actions .button {

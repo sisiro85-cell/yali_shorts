@@ -1,10 +1,16 @@
 from pathlib import Path
+from uuid import uuid4
 
 import pytest
 from pydantic import ValidationError
 
-from yali.domain.models import Project
-from yali.domain.video_settings import ProjectVideoSettings, SubtitleStyle, TTSSettings
+from yali.domain.models import Cut, Project
+from yali.domain.video_settings import (
+    ProjectVideoSettings,
+    SubtitleStyle,
+    TTSSettings,
+    merge_video_settings,
+)
 from yali.storage.project_store import ProjectStore
 
 
@@ -44,3 +50,25 @@ def test_project_video_settings_round_trips_through_store(tmp_path: Path) -> Non
     restored = store.get(project.id)
 
     assert restored.video_settings == project.video_settings
+
+
+def test_cut_override_can_clear_inherited_subtitle_background() -> None:
+    project_settings = ProjectVideoSettings(
+        subtitle={"style": {"background_color": "#111111"}},
+    )
+    cut = Cut(
+        id=uuid4(),
+        order=1,
+        title="배경 해제",
+        subtitle="자막",
+        narration="내레이션",
+        duration_ms=3000,
+        video_settings_overrides={"subtitle": {"style": {"background_color": None}}},
+    )
+
+    resolved = merge_video_settings(project_settings, cut.video_settings_overrides)
+
+    assert cut.video_settings_overrides == {
+        "subtitle": {"style": {"background_color": None}}
+    }
+    assert resolved.subtitle.style.background_color is None

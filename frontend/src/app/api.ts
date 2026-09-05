@@ -137,6 +137,7 @@ export interface CutBoardCut {
   status: CutStatus;
   error: string | null;
   active_version_id: string | null;
+  video_settings_overrides?: VideoSettingsPatch;
   versions: CutVersion[];
 }
 
@@ -329,6 +330,12 @@ export const apiClient = {
   async updateVideoSettings(projectId: string, patch: VideoSettingsPatch): Promise<ProjectVideoSettings> {
     return requestJson(`/projects/${projectId}/video-settings`, {
       method: "PATCH",
+      body: JSON.stringify(patch),
+    });
+  },
+  async updateCutVideoSettings(projectId: string, cutId: string, patch: VideoSettingsPatch): Promise<CutBoardCut> {
+    return requestJson(`/projects/${projectId}/cuts/${cutId}/video-settings`, {
+      method: "PUT",
       body: JSON.stringify(patch),
     });
   },

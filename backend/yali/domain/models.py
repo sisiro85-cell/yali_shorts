@@ -4,11 +4,11 @@ from datetime import datetime, timezone
 from typing import Any, Literal
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from yali.content.models import ScriptState
 from yali.domain.enums import ProjectStage, ProjectStatus
-from yali.domain.video_settings import ProjectVideoSettings
+from yali.domain.video_settings import ProjectVideoSettings, normalize_video_settings_overrides
 
 
 def utc_now() -> datetime:
@@ -34,6 +34,7 @@ class Cut(BaseModel):
     visual_prompt: str = ""
     media_asset_id: UUID | None = None
     audio_asset_id: UUID | None = None
+    video_settings_overrides: dict[str, Any] = Field(default_factory=dict)
     narration_text: str = ""
     subtitle: str = ""
     motion_preset: str = "static"
@@ -42,6 +43,11 @@ class Cut(BaseModel):
     active_version_id: UUID | None = None
     status: Literal["draft", "generating", "ready", "failed"] = "draft"
     error: str | None = None
+
+    @field_validator("video_settings_overrides")
+    @classmethod
+    def validate_video_settings_overrides(cls, value: dict[str, Any]) -> dict[str, Any]:
+        return normalize_video_settings_overrides(value)
 
     @model_validator(mode="after")
     def validate_versions(self) -> Cut:

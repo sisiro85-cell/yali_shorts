@@ -12,6 +12,7 @@ vi.mock("../app/api", async () => {
       getCutBoard: vi.fn(),
       getVideoSettings: vi.fn(),
       updateVideoSettings: vi.fn(),
+      updateCutVideoSettings: vi.fn(),
     },
   };
 });
@@ -20,6 +21,7 @@ const mockedApi = apiClient as unknown as {
   getCutBoard: ReturnType<typeof vi.fn>;
   getVideoSettings: ReturnType<typeof vi.fn>;
   updateVideoSettings: ReturnType<typeof vi.fn>;
+  updateCutVideoSettings: ReturnType<typeof vi.fn>;
 };
 
 const board = {
@@ -50,10 +52,11 @@ const board = {
           subtitle: "AI 자동화는 시간을 줄입니다.",
           motion_preset: "static",
           locked: false,
-          status: "ready" as const,
-          error: null,
-          active_version_id: "cut-version-1",
-          versions: [],
+           status: "ready" as const,
+           error: null,
+           active_version_id: "cut-version-1",
+           video_settings_overrides: {},
+           versions: [],
         },
         {
           id: "cut-2",
@@ -69,10 +72,11 @@ const board = {
           subtitle: "작은 업무부터 자동화해 보세요.",
           motion_preset: "static",
           locked: false,
-          status: "draft" as const,
-          error: null,
-          active_version_id: null,
-          versions: [],
+           status: "draft" as const,
+           error: null,
+           active_version_id: null,
+           video_settings_overrides: {},
+           versions: [],
         },
       ],
     },
@@ -113,6 +117,10 @@ beforeEach(() => {
   mockedApi.getCutBoard.mockResolvedValue(board);
   mockedApi.getVideoSettings.mockResolvedValue(settings);
   mockedApi.updateVideoSettings.mockImplementation(async (_projectId: string, next: unknown) => next);
+  mockedApi.updateCutVideoSettings.mockImplementation(async (_projectId: string, cutId: string, patch: unknown) => ({
+    ...board.scenes[0].cuts.find((cut) => cut.id === cutId),
+    video_settings_overrides: patch,
+  }));
 });
 
 test("컷 미리보기와 프로젝트 기본 음성·자막 설정을 표시한다", async () => {
@@ -153,4 +161,24 @@ test("미리보기 컷을 바꾸고 음성 속도와 자막 위치를 저장한�
     }),
   ));
   expect(await screen.findByText("설정을 저장했습니다.")).toBeInTheDocument();
+});
+
+test("선택한 컷 예외는 프로젝트 기본값에서 시작하고 변경 필드만 저장한다", async () => {
+  render(<VideoSettingsPage projectId="project-1" />);
+
+  await screen.findByRole("heading", { name: "음성·자막 설정" });
+  fireEvent.click(screen.getByRole("button", { name: "컷 1 예외 설정" }));
+  fireEvent.click(screen.getByRole("button", { name: "자막 위치: 상단" }));
+
+  expect(screen.getAllByText("컷 1 예외 설정").length).toBeGreaterThan(0);
+  expect(screen.getByRole("button", { name: "자막 위치: 상단" })).toHaveAttribute("aria-pressed", "true");
+
+  fireEvent.click(screen.getByRole("button", { name: "컷 예외 저장" }));
+
+  await waitFor(() => expect(mockedApi.updateCutVideoSettings).toHaveBeenCalledWith(
+    "project-1",
+    "cut-1",
+    { subtitle: { style: { position: "top" } } },
+  ));
+  expect(await screen.findByText("컷별 예외 설정을 저장했습니다.")).toBeInTheDocument();
 });

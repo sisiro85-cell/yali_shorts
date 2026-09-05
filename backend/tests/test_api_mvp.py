@@ -509,6 +509,56 @@ def test_video_settings_patch_rejects_invalid_values(tmp_path: Path) -> None:
     assert response.status_code == 422
 
 
+def test_cut_video_settings_override_is_sparse_and_applies_only_to_selected_cut(tmp_path: Path) -> None:
+    client, project = _client(tmp_path)
+    _complete_idea(client, project)
+    assert client.post(f"/api/projects/{project.id}/script/generate", json={}).status_code == 200
+    generated = client.post(f"/api/projects/{project.id}/cuts/generate", json={})
+    assert generated.status_code == 200
+    first_cut_id = generated.json()["scenes"][0]["cuts"][0]["id"]
+    second_cut_id = generated.json()["scenes"][0]["cuts"][1]["id"]
+
+    project_settings = client.patch(
+        f"/api/projects/{project.id}/video-settings",
+        json={"audio": {"speed": 1.1}, "subtitle": {"style": {"position": "center", "font_size": 60}}},
+    )
+    assert project_settings.status_code == 200
+    baseline_manifest = client.post(f"/api/projects/{project.id}/output/manifest", json={"format": "shorts"})
+    assert baseline_manifest.status_code == 200
+
+    override = client.put(
+        f"/api/projects/{project.id}/cuts/{first_cut_id}/video-settings",
+        json={"audio": {"speed": 1.2}, "subtitle": {"style": {"position": "top", "font_size": 72}}},
+    )
+
+    assert override.status_code == 200
+    assert override.json()["video_settings_overrides"] == {
+        "audio": {"speed": 1.2},
+        "subtitle": {"style": {"position": "top", "font_size": 72}},
+    }
+
+    manifest = client.post(f"/api/projects/{project.id}/output/manifest", json={"format": "shorts"})
+
+    assert manifest.status_code == 200
+    assert manifest.json()["output_variant_id"] != baseline_manifest.json()["output_variant_id"]
+    assert manifest.json()["cuts"][0]["subtitle_style"]["position"] == "top"
+    assert manifest.json()["cuts"][0]["subtitle_style"]["font_size"] == 72
+    assert manifest.json()["cuts"][1]["subtitle_style"]["position"] == "center"
+    assert manifest.json()["cuts"][1]["subtitle_style"]["font_size"] == 60
+
+    reset = client.put(
+        f"/api/projects/{project.id}/cuts/{first_cut_id}/video-settings",
+        json={},
+    )
+
+    assert reset.status_code == 200
+    assert reset.json()["video_settings_overrides"] == {}
+    board = client.get(f"/api/projects/{project.id}/cuts")
+    assert board.status_code == 200
+    assert board.json()["scenes"][0]["cuts"][0]["video_settings_overrides"] == {}
+    assert board.json()["scenes"][0]["cuts"][1]["id"] == second_cut_id
+
+
 def test_enabled_worker_processes_idea_job_and_updates_project(tmp_path: Path) -> None:
     _, project = _client(tmp_path)
     gateway = AiGateway(

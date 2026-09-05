@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Mapping
+from typing import Any
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, Header, Request, status
@@ -21,6 +22,7 @@ from yali.content.service import (
 from yali.domain.commands import RegenerateOptions
 from yali.domain.enums import ProjectStage
 from yali.domain.models import Cut, CutVersion, MediaAsset, Project, Scene
+from yali.domain.video_settings import VideoSettingsPatch, normalize_video_settings_overrides
 from yali.jobs.models import JobAccepted
 from yali.jobs.queue import PersistentJobQueue
 from yali.storage.project_store import CutNotFoundError, ProjectStore
@@ -49,6 +51,7 @@ class CutResponse(BaseModel):
     media_width: int | None = None
     media_height: int | None = None
     audio_asset_id: UUID | None
+    video_settings_overrides: dict[str, Any] = Field(default_factory=dict)
     narration_text: str
     subtitle: str
     motion_preset: str
@@ -114,6 +117,27 @@ def get_cut_board(
     store: ProjectStore = Depends(get_project_store),
 ) -> CutBoardResponse:
     return _board_response(store.get(project_id))
+
+
+@router.put("/{cut_id}/video-settings", response_model=CutResponse)
+def replace_cut_video_settings(
+    project_id: UUID,
+    cut_id: UUID,
+    request: VideoSettingsPatch,
+    store: ProjectStore = Depends(get_project_store),
+) -> CutResponse:
+    project = store.get(project_id)
+    cut = next(
+        (cut for scene in project.scenes for cut in scene.cuts if cut.id == cut_id),
+        None,
+    )
+    if cut is None:
+        raise CutNotFoundError(f"Cut not found in project {project_id}: {cut_id}")
+    cut.video_settings_overrides = normalize_video_settings_overrides(
+        request.model_dump(mode="python", exclude_unset=True),
+    )
+    store.update(project)
+    return CutResponse.from_cut(cut, {asset.id: asset for asset in project.assets})
 
 
 @router.post("/generate", response_model=CutBoardResponse)

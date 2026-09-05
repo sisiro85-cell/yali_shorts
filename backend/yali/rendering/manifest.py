@@ -11,7 +11,7 @@ from uuid import UUID, uuid5
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, computed_field
 
 from yali.domain.models import Cut, CutVersion, MediaAsset, Project
-from yali.domain.video_settings import ProjectVideoSettings, SubtitleStyle
+from yali.domain.video_settings import ProjectVideoSettings, SubtitleStyle, merge_video_settings
 
 
 OutputFormat = Literal["shorts", "reels", "card_news"]
@@ -65,6 +65,7 @@ class ManifestCut(BaseModel):
     narration: str = ""
     subtitle: str = ""
     subtitle_style: SubtitleStyle = Field(default_factory=SubtitleStyle)
+    video_settings: ProjectVideoSettings = Field(default_factory=ProjectVideoSettings)
     motion_preset: str = "static"
     duration_ms: int = Field(ge=250)
 
@@ -124,9 +125,9 @@ def build_manifest(
                 )
             },
         )
-    resolved_subtitle_style = resolved_video_settings.subtitle.style
     project_assets = {asset.id: asset for asset in project.assets}
     manifest_cuts: list[ManifestCut] = []
+    resolved_cut_settings: list[ProjectVideoSettings] = []
     cut_version_ids: list[UUID] = []
     referenced_asset_ids: list[UUID] = []
 
@@ -157,6 +158,12 @@ def build_manifest(
                     raise ValueError(f"Cut audio reference is not an audio asset: {audio_asset_id}")
                 _append_unique(referenced_asset_ids, audio_asset_id)
 
+            cut_video_settings = merge_video_settings(
+                resolved_video_settings,
+                cut.video_settings_overrides,
+            )
+            resolved_cut_settings.append(cut_video_settings)
+
             manifest_cuts.append(
                 ManifestCut(
                     scene_id=scene.id,
@@ -170,7 +177,8 @@ def build_manifest(
                     visual_prompt=version.visual_prompt if version is not None else cut.visual_prompt,
                     narration=version.narration_text if version is not None else cut.narration_text,
                     subtitle=version.subtitle if version is not None else cut.subtitle,
-                    subtitle_style=resolved_subtitle_style,
+                    subtitle_style=cut_video_settings.subtitle.style,
+                    video_settings=cut_video_settings,
                     motion_preset=version.motion_preset if version is not None else cut.motion_preset,
                     duration_ms=cut.duration_ms,
                 )
@@ -189,6 +197,7 @@ def build_manifest(
         preset_id,
         cut_version_ids,
         resolved_video_settings,
+        resolved_cut_settings,
     )
     existing_variant = next(
         (variant for variant in project.output_variants if variant.id == output_variant_id),
@@ -295,20 +304,27 @@ def _output_variant_id(
     preset_id: str | None,
     cut_version_ids: list[UUID],
     video_settings: ProjectVideoSettings,
+    cut_video_settings: list[ProjectVideoSettings],
 ) -> UUID:
     settings_payload = video_settings.model_dump(mode="json")
+    cut_settings_payload = [item.model_dump(mode="json") for item in cut_video_settings]
     for variant in project.output_variants:
         if (
             variant.format == output_format
             and variant.preset_id == preset_id
             and variant.cut_version_ids == cut_version_ids
             and _variant_video_settings(variant).model_dump(mode="json") == settings_payload
+            and all(
+                item.model_dump(mode="json") == settings_payload
+                for item in cut_video_settings
+            )
         ):
             return variant.id
 
     provenance = ",".join(str(item) for item in cut_version_ids)
     settings_key = json.dumps(settings_payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-    key = f"{project.id}|{output_format}|{preset_id or ''}|{provenance}|{settings_key}"
+    cut_settings_key = json.dumps(cut_settings_payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    key = f"{project.id}|{output_format}|{preset_id or ''}|{provenance}|{settings_key}|{cut_settings_key}"
     return uuid5(_OUTPUT_VARIANT_NAMESPACE, key)
 
 

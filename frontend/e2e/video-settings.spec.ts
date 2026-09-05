@@ -111,3 +111,28 @@ test("영상 설정을 컷 미리보기와 함께 수정하고 저장한다", as
   }
   await page.screenshot({ path: "test-results/video-settings-mobile.png", fullPage: true });
 });
+
+test("컷별 예외는 변경 필드만 저장하고 기본값으로 되돌릴 수 있다", async ({ page }) => {
+  let overridePayload: unknown;
+  let cut = { ...board.scenes[0].cuts[0], video_settings_overrides: {} };
+  await page.route(`**/api/projects/${projectId}/cuts`, (route) => route.fulfill({ json: board }));
+  await page.route(`**/api/projects/${projectId}/video-settings`, (route) => route.fulfill({ json: initialSettings }));
+  await page.route(`**/api/projects/${projectId}/cuts/cut-1/video-settings`, async (route) => {
+    overridePayload = await route.request().postDataJSON();
+    cut = { ...cut, video_settings_overrides: overridePayload };
+    await route.fulfill({ json: cut });
+  });
+
+  await page.goto(`/projects/${projectId}/design/settings`);
+  await page.getByRole("button", { name: "컷 1 예외 설정" }).click();
+  await page.getByRole("button", { name: "자막 위치: 상단" }).click();
+  await page.getByRole("button", { name: "컷 예외 저장" }).click();
+
+  await expect(page.getByText("컷별 예외 설정을 저장했습니다.")).toBeVisible();
+  expect(overridePayload).toEqual({ subtitle: { style: { position: "top" } } });
+  await expect(page.getByRole("button", { name: "프로젝트 기본값으로 되돌리기" })).toBeEnabled();
+
+  await page.getByRole("button", { name: "프로젝트 기본값으로 되돌리기" }).click();
+  await expect(page.getByText("프로젝트 기본값으로 되돌렸습니다.")).toBeVisible();
+  expect(overridePayload).toEqual({});
+});

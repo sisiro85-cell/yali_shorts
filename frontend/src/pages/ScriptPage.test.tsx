@@ -217,7 +217,7 @@ test("loads the cut board and renders cut images on the design stage", async () 
   expect(screen.getByRole("button", { name: "출력으로 이동" })).toBeEnabled();
 });
 
-test("generates every design image one cut at a time", async () => {
+test("generates every design image through parallel cut sessions", async () => {
   const designBoard = makeBoard("project-a", "프로젝트 A", "첫 번째 컷");
   designBoard.stage = "design";
   designBoard.scenes[0].cuts = [
@@ -233,6 +233,7 @@ test("generates every design image one cut at a time", async () => {
   };
   let boardReads = 0;
   const regenerationRequests: string[] = [];
+  let polledBeforeAllRequests = false;
 
   vi.stubGlobal(
     "fetch",
@@ -250,8 +251,13 @@ test("generates every design image one cut at a time", async () => {
         return Promise.resolve(makeJsonResponse({ job_id: "design-job-2", cut_id: "project-a-cut-2", status: "queued" }, 202));
       }
       if (input.includes("/jobs?project_id=project-a")) {
-        const jobId = regenerationRequests.length === 1 ? "design-job-1" : "design-job-2";
-        return Promise.resolve(makeJsonResponse({ jobs: [{ id: jobId, project_id: "project-a", cut_id: regenerationRequests[regenerationRequests.length - 1], kind: "cut.regenerate", status: "completed", progress: 100, error: null, retry_count: 0 }] }));
+        if (regenerationRequests.length < 2) polledBeforeAllRequests = true;
+        return Promise.resolve(makeJsonResponse({
+          jobs: [
+            { id: "design-job-1", project_id: "project-a", cut_id: "project-a-cut", kind: "cut.regenerate", status: regenerationRequests.length === 2 ? "completed" : "running", progress: regenerationRequests.length === 2 ? 100 : 1, error: null, retry_count: 0 },
+            { id: "design-job-2", project_id: "project-a", cut_id: "project-a-cut-2", kind: "cut.regenerate", status: regenerationRequests.length === 2 ? "completed" : "running", progress: regenerationRequests.length === 2 ? 100 : 1, error: null, retry_count: 0 },
+          ],
+        }));
       }
       throw new Error(`Unhandled fetch ${input} ${init?.method ?? "GET"}`);
     }),
@@ -264,4 +270,5 @@ test("generates every design image one cut at a time", async () => {
 
   await waitFor(() => expect(screen.getByText("전체 이미지 생성을 완료했습니다.")).toBeVisible());
   expect(regenerationRequests).toEqual(["project-a-cut", "project-a-cut-2"]);
+  expect(polledBeforeAllRequests).toBe(false);
 });

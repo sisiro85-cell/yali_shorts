@@ -20,7 +20,7 @@ class JobRunner:
         queue: PersistentJobQueue,
         handler: JobHandler,
         *,
-        max_workers: int = 1,
+        max_workers: int = 4,
     ) -> None:
         self.queue = queue
         self.handler = handler

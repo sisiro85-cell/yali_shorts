@@ -103,6 +103,8 @@ Codex 연동 단계에서는 Codex CLI 로그인이 선행되어야 하며, 구�
 
 디자인 단계의 이미지 생성은 로컬에 로그인된 Codex CLI를 기존 MCP 브리지의 `generate_image` 도구로 호출합니다. 생성된 PNG는 브리지에서 base64 MCP 이미지 콘텐츠로 전달된 뒤 프로젝트 자산으로 저장됩니다. 등록한 원본 이미지·영상은 프로젝트 참고자료와 미리보기에서 원본 색상으로 유지됩니다.
 
+디자인 탭에서 전체 이미지 생성을 시작하면 컷마다 고유한 작업과 Codex MCP 세션을 만들고 최대 4개까지 병렬 처리합니다. 각 컷의 결과는 최신 프로젝트에 개별 병합하므로 한 컷의 저장이 다른 컷의 결과를 덮어쓰지 않습니다.
+
 Codex text/image provider는 API 키가 필요 없습니다. 먼저 Codex CLI에 현재 ChatGPT 계정으로 로그인해야 합니다. Codex CLI가 PATH에 없으면 `CODEX_CLI_PATH`에 `codex.exe`의 절대 경로를 지정할 수 있고, 모델을 고정할 때는 선택적으로 `YALI_CODEX_MODEL`을 지정합니다. API fallback을 사용할 때는 다음 환경 변수를 설정합니다. API 키는 응답이나 trace metadata에 포함되지 않습니다.
 
 ```powershell

@@ -91,12 +91,24 @@ function replaceCut(board: CutBoardData, cutId: string, update: (cut: CutBoardCu
   };
 }
 
-async function waitForJobCompletion(projectId: string, jobId: string, isCurrentOperation: () => boolean): Promise<JobSummary | null> {
+async function waitForJobsCompletion(
+  projectId: string,
+  jobIds: string[],
+  isCurrentOperation: () => boolean,
+  onCompleted: (job: JobSummary) => void,
+): Promise<JobSummary[] | null> {
+  const pending = new Set(jobIds);
+  const completed = new Map<string, JobSummary>();
   while (isCurrentOperation()) {
     const jobs = await apiClient.listJobs(projectId);
     if (!isCurrentOperation()) return null;
-    const job = jobs.find((item) => item.id === jobId);
-    if (job && job.status !== "queued" && job.status !== "running") return job;
+    for (const job of jobs) {
+      if (!pending.has(job.id) || job.status === "queued" || job.status === "running") continue;
+      pending.delete(job.id);
+      completed.set(job.id, job);
+      onCompleted(job);
+    }
+    if (pending.size === 0) return jobIds.map((jobId) => completed.get(jobId)).filter((job): job is JobSummary => Boolean(job));
     await new Promise<void>((resolve) => window.setTimeout(resolve, 1000));
   }
   return null;
@@ -139,7 +151,6 @@ export function ScriptPage({ projectId, stage = "script" }: { projectId: string;
   const [isContinuingToOutput, setIsContinuingToOutput] = useState(false);
   const [isGeneratingAllImages, setIsGeneratingAllImages] = useState(false);
   const [bulkImageProgress, setBulkImageProgress] = useState<{ completed: number; total: number } | null>(null);
-  const [bulkCutId, setBulkCutId] = useState<string | null>(null);
   const [activeCutAction, setActiveCutAction] = useState<{ cutId: string; kind: CutAction } | null>(null);
   const [cutJob, setCutJob] = useState<{ jobId: string; cutId: string; cutOrder: number } | null>(null);
   const pageOperationSequence = useRef(0);
@@ -153,7 +164,6 @@ export function ScriptPage({ projectId, stage = "script" }: { projectId: string;
     setIsContinuingToOutput(false);
     setIsGeneratingAllImages(false);
     setBulkImageProgress(null);
-    setBulkCutId(null);
     setActiveCutAction(null);
     setCutJob(null);
     setError("");
@@ -372,18 +382,31 @@ export function ScriptPage({ projectId, stage = "script" }: { projectId: string;
     setError("");
     setNotice("");
     try {
-      for (const [index, cut] of cuts.entries()) {
-        if (!isCurrentOperation()) return;
-        setBulkCutId(cut.id);
-        setNotice(`컷 ${cut.order} 이미지 생성 중입니다. (${index + 1}/${cuts.length})`);
-        const accepted = await apiClient.regenerateCut(projectId, cut.id, { image_only: true });
-        if (!isCurrentOperation()) return;
-        const job = await waitForJobCompletion(projectId, accepted.job_id, isCurrentOperation);
-        if (!job) return;
-        if (job.status !== "completed") {
-          throw new Error(job.error ?? `컷 ${cut.order} 이미지 생성에 실패했습니다.`);
-        }
-        setBulkImageProgress({ completed: index + 1, total: cuts.length });
+      setNotice(`전체 ${cuts.length}개 이미지 생성 요청을 등록 중입니다.`);
+      const acceptedJobs = await Promise.all(
+        cuts.map((cut) => apiClient.regenerateCut(projectId, cut.id, { image_only: true })),
+      );
+      if (!isCurrentOperation()) return;
+
+      const cutByJobId = new Map(acceptedJobs.map((accepted, index) => [accepted.job_id, cuts[index]]));
+      let completedCount = 0;
+      const jobs = await waitForJobsCompletion(
+        projectId,
+        acceptedJobs.map((accepted) => accepted.job_id),
+        isCurrentOperation,
+        () => {
+          completedCount += 1;
+          if (isCurrentOperation()) {
+            setBulkImageProgress({ completed: completedCount, total: cuts.length });
+            setNotice(`이미지 생성 중입니다. (${completedCount}/${cuts.length})`);
+          }
+        },
+      );
+      if (!jobs) return;
+      const failedJob = jobs.find((job) => job.status !== "completed");
+      if (failedJob) {
+        const failedCut = cutByJobId.get(failedJob.id);
+        throw new Error(failedJob.error ?? (failedCut ? `컷 ${failedCut.order} 이미지 생성에 실패했습니다.` : "이미지 생성에 실패했습니다."));
       }
 
       const next = await apiClient.getCutBoard(projectId);
@@ -395,7 +418,6 @@ export function ScriptPage({ projectId, stage = "script" }: { projectId: string;
     } finally {
       if (isCurrentOperation()) {
         setIsGeneratingAllImages(false);
-        setBulkCutId(null);
         setBulkImageProgress(null);
       }
     }
@@ -440,8 +462,8 @@ export function ScriptPage({ projectId, stage = "script" }: { projectId: string;
 
   const projectTitle = (stage === "script" ? scriptData?.project_title : stage === "cuts" || stage === "design" ? cutData?.project_title : ideaData?.project_title) ?? "프로젝트";
   const currentStage: WorkflowStage = stage;
-  const busyCutId = bulkCutId ?? cutJob?.cutId ?? activeCutAction?.cutId ?? null;
-  const busyCutAction: CutAction | null = bulkCutId ? "regenerate" : cutJob ? "regenerate" : activeCutAction?.kind ?? null;
+  const busyCutId = cutJob?.cutId ?? activeCutAction?.cutId ?? null;
+  const busyCutAction: CutAction | null = cutJob ? "regenerate" : activeCutAction?.kind ?? null;
 
   return (
     <AppShell

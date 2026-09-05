@@ -244,7 +244,7 @@ export function DesignBoard({ projectId, data, isLoading = false, error, notice,
                 cut={cut}
                 targetAspectRatio={targetAspectRatio}
                 isBusy={isGeneratingAll || busyCutId === cut.id}
-                busyAction={busyCutId === cut.id ? busyCutAction : null}
+                busyAction={isGeneratingAll ? "regenerate" : busyCutId === cut.id ? busyCutAction : null}
                 onRegenerate={onRegenerate}
               />
             )))}

@@ -5,6 +5,7 @@ from uuid import UUID
 
 import json
 import struct
+from threading import Barrier, Lock
 from time import monotonic, sleep
 
 import pytest
@@ -80,6 +81,32 @@ class FailingImageProvider(RecordingImageProvider):
     def generate(self, request: ImageGenerationRequest) -> ImageGenerationResponse:
         self.requests.append(request)
         raise RuntimeError("provider unavailable")
+
+
+class ConcurrentImageProvider(RecordingImageProvider):
+    def __init__(self) -> None:
+        super().__init__()
+        self.barrier = Barrier(2)
+        self.lock = Lock()
+        self.active = 0
+        self.peak_active = 0
+
+    def generate(self, request: ImageGenerationRequest) -> ImageGenerationResponse:
+        with self.lock:
+            self.active += 1
+            self.peak_active = max(self.peak_active, self.active)
+            self.requests.append(request)
+        try:
+            self.barrier.wait(timeout=2)
+            return ImageGenerationResponse(
+                content=self.content,
+                media_type="image/png",
+                provider=self.name,
+                model=request.model_name,
+            )
+        finally:
+            with self.lock:
+                self.active -= 1
 
 
 def test_attach_generated_cut_visual_persists_provider_png_without_svg(tmp_path: Path) -> None:
@@ -272,3 +299,51 @@ def test_enabled_worker_connects_the_queued_job_to_the_image_provider(tmp_path: 
     assert len(image_provider.requests) == 1
     assert stored_cut.status == "ready"
     assert stored_cut.media_asset_id is not None
+
+
+def test_enabled_worker_processes_bulk_image_jobs_in_parallel_and_merges_cuts(tmp_path: Path) -> None:
+    store = ProjectStore(tmp_path)
+    project = Project(title="병렬 이미지 워커 테스트")
+    first_cut = _cut()
+    second_cut = _cut()
+    second_cut.order = 2
+    second_cut.id = UUID("22222222-2222-2222-2222-222222222222")
+    project.scenes = [Scene(order=1, title="씬 1", cuts=[first_cut, second_cut])]
+    store.save(project)
+    image_provider = ConcurrentImageProvider()
+    app = create_app(
+        data_root=tmp_path,
+        provider_factory=lambda: AiGateway(primary=FakeTextProvider()),
+        image_provider_factory=lambda: image_provider,
+        enable_worker=True,
+    )
+
+    with TestClient(app) as client:
+        accepted = [
+            client.post(
+                f"/api/projects/{project.id}/cuts/{cut.id}/regenerate",
+                json={"image_only": True},
+            )
+            for cut in (first_cut, second_cut)
+        ]
+        assert [response.status_code for response in accepted] == [202, 202]
+        job_ids = [response.json()["job_id"] for response in accepted]
+
+        deadline = monotonic() + 5
+        jobs = []
+        while monotonic() < deadline:
+            jobs = client.get(f"/api/jobs?project_id={project.id}").json()["jobs"]
+            selected = [job for job in jobs if job["id"] in job_ids]
+            if len(selected) == 2 and all(job["status"] not in {"queued", "running"} for job in selected):
+                break
+            sleep(0.02)
+
+        selected = {job["id"]: job for job in jobs if job["id"] in job_ids}
+        assert {job["status"] for job in selected.values()} == {"completed"}, selected
+
+    stored = store.get(project.id)
+    stored_cuts = stored.scenes[0].cuts
+    assert image_provider.peak_active == 2
+    assert len(image_provider.requests) == 2
+    assert len({request.metadata.request_id for request in image_provider.requests}) == 2
+    assert all(cut.status == "ready" and cut.media_asset_id is not None for cut in stored_cuts)

@@ -16,7 +16,7 @@ from yali.media.generator import GeneratedCutVisual, attach_generated_cut_visual
 from yali.media.render_client import RenderWorkerClient
 from yali.media.aspect import target_aspect_ratio_for_project
 from yali.rendering.manifest import OutputManifest
-from yali.storage.project_store import CutNotFoundError, ProjectRevisionConflict, ProjectStore
+from yali.storage.project_store import CutLockedError, CutNotFoundError, ProjectRevisionConflict, ProjectStore
 
 
 class JobProcessingError(RuntimeError):
@@ -101,7 +101,10 @@ class JobProcessor:
     def _process_cut_regeneration(self, job: QueuedJob) -> None:
         project = self.store.get(job.project_id)
         queued_revision = _parse_revision(job.payload.get("project_updated_at"))
-        if queued_revision is not None and project.updated_at != queued_revision:
+        raw_options = job.payload.get("options", {})
+        image_only = isinstance(raw_options, Mapping) and raw_options.get("image_only") is True
+        options = RegenerateOptions.model_validate(raw_options)
+        if not image_only and queued_revision is not None and project.updated_at != queued_revision:
             raise JobProcessingError("Cut regeneration request is stale") from None
         cut_id = job.cut_id
         if cut_id is None:
@@ -118,9 +121,16 @@ class JobProcessor:
         current_active_version_id = str(cut.active_version_id) if cut.active_version_id else None
         if queued_active_version_id != current_active_version_id:
             raise JobProcessingError("Cut regeneration request is stale") from None
-        raw_options = job.payload.get("options", {})
-        image_only = isinstance(raw_options, Mapping) and raw_options.get("image_only") is True
-        options = RegenerateOptions.model_validate(raw_options)
+        if image_only:
+            self._process_image_only_cut(
+                job,
+                project=project,
+                cut=cut,
+                options=options,
+                expected_active_version_id=cut.active_version_id,
+            )
+            return
+
         expected_revision = queued_revision or project.updated_at
         result_data: Mapping[str, object] = {}
         if not image_only:
@@ -238,6 +248,93 @@ class JobProcessor:
             _discard_generated_visuals(generated_visuals)
             raise
 
+    def _process_image_only_cut(
+        self,
+        job: QueuedJob,
+        *,
+        project: Project,
+        cut: Cut,
+        options: RegenerateOptions,
+        expected_active_version_id: UUID | None,
+    ) -> None:
+        if self.image_provider is None:
+            message = "이미지 생성 Provider가 설정되지 않았습니다."
+            self._mark_cut_failed_for_version(
+                job.id,
+                job.project_id,
+                cut.id,
+                expected_active_version_id,
+                message,
+            )
+            raise JobProcessingError("Cut image provider is not configured", public_message=message)
+
+        target_aspect_ratio = target_aspect_ratio_for_project(project)
+        model_name = _provider_model(self.image_provider)
+        prompt = options.visual_prompt if options.visual_prompt is not None else cut.visual_prompt
+        generated_visuals: list[GeneratedCutVisual] = []
+        try:
+            response = self.image_provider.generate(
+                ImageGenerationRequest(
+                    prompt=prompt,
+                    model_name=model_name,
+                    aspect_ratio=target_aspect_ratio,
+                    metadata=GenerationMetadata(
+                        request_id=str(job.id),
+                        project_id=str(project.id),
+                        cut_id=str(cut.id),
+                        operation=Operation.REGENERATE_CUT,
+                        model=model_name,
+                    ),
+                )
+            )
+            if self._job_is_cancelled(job.id):
+                return
+
+            def apply_image(current: Project, current_cut: Cut) -> None:
+                if target_aspect_ratio_for_project(current) != target_aspect_ratio:
+                    raise ProjectRevisionConflict("Project image target changed before update")
+                apply_cut_regeneration(current_cut, options)
+                generated_visuals.append(
+                    attach_generated_cut_visual(
+                        current,
+                        current_cut,
+                        self.store.projects_root / str(current.id) / "assets",
+                        content=response.content,
+                        media_type=response.media_type,
+                        expected_aspect_ratio=target_aspect_ratio,
+                    )
+                )
+
+            self.store.update_cut_if_current(
+                job.project_id,
+                cut.id,
+                expected_active_version_id=expected_active_version_id,
+                update=apply_image,
+                guard=lambda: not self._job_is_cancelled(job.id),
+            )
+        except ProjectRevisionConflict:
+            _discard_generated_visuals(generated_visuals)
+            if self._job_is_cancelled(job.id):
+                return
+            raise
+        except CutLockedError:
+            _discard_generated_visuals(generated_visuals)
+            raise JobProcessingError(
+                "Cut is locked",
+                public_message="잠긴 컷은 다시 만들 수 없습니다.",
+            ) from None
+        except Exception as error:
+            _discard_generated_visuals(generated_visuals)
+            message = _image_generation_error(error)
+            self._mark_cut_failed_for_version(
+                job.id,
+                job.project_id,
+                cut.id,
+                expected_active_version_id,
+                message,
+            )
+            raise JobProcessingError("Cut image generation failed", public_message=message) from None
+
     def _process_output_render(self, job: QueuedJob) -> None:
         if self.render_client is None:
             raise JobProcessingError("Render worker is not configured") from None
@@ -330,6 +427,30 @@ class JobProcessor:
             self.store.update_if_unchanged(project, expected_updated_at=expected_revision)
         except Exception:
             return
+
+    def _mark_cut_failed_for_version(
+        self,
+        job_id: UUID,
+        project_id: UUID,
+        cut_id: UUID,
+        expected_active_version_id: UUID | None,
+        message: str,
+    ) -> None:
+        try:
+            self.store.update_cut_if_current(
+                project_id,
+                cut_id,
+                expected_active_version_id=expected_active_version_id,
+                update=lambda _project, cut: self._set_cut_failure(cut, message),
+                guard=lambda: not self._job_is_cancelled(job_id),
+            )
+        except Exception:
+            return
+
+    @staticmethod
+    def _set_cut_failure(cut: Cut, message: str) -> None:
+        cut.status = "failed"
+        cut.error = message
 
 
 def _text(value: object, fallback: str) -> str:

@@ -151,6 +151,30 @@ class ProjectStore:
             project.updated_at = utc_now()
             self._write(project)
 
+    def update_cut_if_current(
+        self,
+        project_id: UUID,
+        cut_id: UUID,
+        *,
+        expected_active_version_id: UUID | None,
+        update: Callable[[Project, Cut], None],
+        guard: Callable[[], bool] | None = None,
+    ) -> Project:
+        """Merge one current cut after work outside the store lock finishes."""
+        with _PROJECT_THREAD_LOCK, CrossProcessFileLock(self._lock_path):
+            stored = self._get_unlocked(project_id)
+            cut = self._find_cut(stored, cut_id)
+            if cut.active_version_id != expected_active_version_id:
+                raise ProjectRevisionConflict(f"Cut changed before update: {cut_id}")
+            if cut.locked:
+                raise CutLockedError(f"Cut is locked: {cut_id}")
+            if guard is not None and not guard():
+                raise ProjectRevisionConflict(f"Cut write guard rejected the update: {cut_id}")
+            update(stored, cut)
+            stored.updated_at = utc_now()
+            self._write(stored)
+            return stored
+
     def get_cut(self, project_id: UUID, cut_id: UUID) -> Cut:
         return self._find_cut(self.get(project_id), cut_id)
 

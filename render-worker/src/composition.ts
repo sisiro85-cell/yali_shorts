@@ -10,6 +10,17 @@ const TEXT = "#252421";
 const SECONDARY = "#5A554E";
 const ACCENT = "#817568";
 
+export const BUNDLED_FONT_FILES = {
+  Pretendard: { regular: "pretendard-regular.woff2", bold: "pretendard-bold.woff2" },
+  "Noto Sans KR": { regular: "noto-sans-kr-regular.woff2", bold: "noto-sans-kr-bold.woff2" },
+  "Noto Serif KR": { regular: "noto-serif-kr-regular.woff2", bold: "noto-serif-kr-bold.woff2" },
+  SUIT: { regular: "suit-regular.woff2", bold: "suit-bold.woff2" },
+  "Spoqa Han Sans Neo": { regular: "spoqa-han-sans-neo-regular.woff2", bold: "spoqa-han-sans-neo-bold.woff2" },
+  "IBM Plex Sans KR": { regular: "ibm-plex-sans-kr-regular.woff2", bold: "ibm-plex-sans-kr-bold.woff2" },
+  "나눔고딕": { regular: "nanum-gothic-regular.woff2", bold: "nanum-gothic-bold.woff2" },
+  "나눔명조": { regular: "nanum-myeongjo-regular.woff2", bold: "nanum-myeongjo-bold.woff2" },
+} as const;
+
 export function assertRenderManifest(value: unknown): asserts value is RenderManifest {
   if (!value || typeof value !== "object") throw new Error("Render manifest must be an object");
   const manifest = value as Partial<RenderManifest>;
@@ -196,7 +207,14 @@ function styles(manifest: RenderManifest): string {
     ...manifest.cuts.map((cut) => cut.subtitle_style.font_family),
   ]
     .filter((font, index, fonts) => font.trim() && fonts.indexOf(font) === index)
-    .map((font) => `@font-face { font-family: "${escapeCssString(font)}"; src: local("${escapeCssString(font)}"); }`)
+    .map((font) => {
+      const files = BUNDLED_FONT_FILES[font as keyof typeof BUNDLED_FONT_FILES];
+      if (!files) return `@font-face { font-family: "${escapeCssString(font)}"; src: local("${escapeCssString(font)}"); }`;
+      return [
+        `@font-face { font-family: "${escapeCssString(font)}"; font-style: normal; font-display: swap; font-weight: 400; src: url("fonts/${files.regular}") format("woff2"); }`,
+        `@font-face { font-family: "${escapeCssString(font)}"; font-style: normal; font-display: swap; font-weight: 700; src: url("fonts/${files.bold}") format("woff2"); }`,
+      ].join("\n");
+    })
     .join("\n");
   return `
     * { box-sizing: border-box; }

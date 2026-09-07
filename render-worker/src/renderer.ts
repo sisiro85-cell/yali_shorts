@@ -1,8 +1,9 @@
-import { access, lstat, mkdir, mkdtemp, realpath, rename, rm, stat, symlink, unlink, writeFile } from "node:fs/promises";
+import { access, copyFile, lstat, mkdir, mkdtemp, realpath, rename, rm, stat, symlink, unlink, writeFile } from "node:fs/promises";
 import { constants } from "node:fs";
 import { basename, dirname, extname, join, resolve } from "node:path";
 import { spawn } from "node:child_process";
-import { assertRenderManifest, createCompositionHtml } from "./composition.js";
+import { fileURLToPath } from "node:url";
+import { assertRenderManifest, BUNDLED_FONT_FILES, createCompositionHtml } from "./composition.js";
 import type { RenderManifest, RenderOptions } from "./types.js";
 
 export class RenderError extends Error {}
@@ -12,7 +13,11 @@ export async function renderManifest(manifest: RenderManifest, options: RenderOp
   const projectRoot = resolve(options.projectRoot);
   const outputPath = resolveOutputPath(projectRoot, options.outputPath);
   await assertSourceAssetsExist(manifest, projectRoot);
-  const compositionDir = await createCompositionWorkspace(projectRoot, manifest.output_variant_id);
+  const compositionDir = await createCompositionWorkspace(
+    projectRoot,
+    manifest.output_variant_id,
+    manifest.cuts.map((cut) => cut.subtitle_style.font_family),
+  );
   await ensureCompositionAssets(compositionDir, resolve(projectRoot, "assets"));
   await mkdir(dirname(outputPath), { recursive: true });
 const command = process.platform === "win32" ? "npx.cmd" : "npx";
@@ -36,11 +41,60 @@ const command = process.platform === "win32" ? "npx.cmd" : "npx";
   }
 }
 
-export async function createCompositionWorkspace(projectRoot: string, variantId: string): Promise<string> {
+export async function createCompositionWorkspace(
+  projectRoot: string,
+  variantId: string,
+  fontFamilies: readonly string[] = Object.keys(BUNDLED_FONT_FILES),
+): Promise<string> {
   const renderRoot = join(resolve(projectRoot), ".yali-render");
   await mkdir(renderRoot, { recursive: true });
   const safeVariantId = variantId.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 100) || "variant";
-  return mkdtemp(join(renderRoot, `${safeVariantId}-`));
+  const compositionDir = await mkdtemp(join(renderRoot, `${safeVariantId}-`));
+  try {
+    await copyBundledFonts(compositionDir, fontFamilies);
+    return compositionDir;
+  } catch (error) {
+    await rm(compositionDir, { recursive: true, force: true }).catch(() => undefined);
+    throw error;
+  }
+}
+
+async function copyBundledFonts(compositionDir: string, fontFamilies: readonly string[]): Promise<void> {
+  const sourceDirectory = await findBundledFontDirectory();
+  const requestedFamilies = new Set(["Pretendard", ...fontFamilies]);
+  const requestedFiles = new Set<string>();
+  for (const family of requestedFamilies) {
+    const files = BUNDLED_FONT_FILES[family as keyof typeof BUNDLED_FONT_FILES];
+    if (files) {
+      requestedFiles.add(files.regular);
+      requestedFiles.add(files.bold);
+    }
+  }
+  const destinationDirectory = join(compositionDir, "fonts");
+  await mkdir(destinationDirectory, { recursive: true });
+  for (const filename of requestedFiles) {
+    try {
+      await copyFile(join(sourceDirectory, filename), join(destinationDirectory, filename));
+    } catch {
+      throw new RenderError(`Bundled subtitle font is unavailable: ${filename}`);
+    }
+  }
+}
+
+async function findBundledFontDirectory(): Promise<string> {
+  const candidates = [
+    fileURLToPath(new URL("../../frontend/src/assets/fonts/", import.meta.url)),
+    resolve(process.cwd(), "frontend", "src", "assets", "fonts"),
+  ];
+  for (const candidate of candidates) {
+    try {
+      await access(candidate, constants.R_OK);
+      return candidate;
+    } catch {
+      // Try the next location so the portable bundle and source checkout both work.
+    }
+  }
+  throw new RenderError("Bundled subtitle font assets are unavailable");
 }
 
 async function ensureCompositionAssets(compositionDir: string, assetsRoot: string): Promise<void> {

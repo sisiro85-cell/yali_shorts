@@ -109,6 +109,22 @@ test("composition keeps original media color and cut timing explicit", () => {
   assert.match(html, /timeline\.duration\(\"?1\.250/);
 });
 
+test("composition references bundled subtitle font files", () => {
+  const customFontManifest: RenderManifest = {
+    ...manifest,
+    cuts: [{
+      ...manifest.cuts[0],
+      subtitle_style: { ...manifest.cuts[0].subtitle_style, font_family: "나눔고딕" },
+    }],
+  };
+
+  const html = createCompositionHtml(customFontManifest);
+
+  assert.match(html, /font-family: "Pretendard";[^}]*url\("fonts\/pretendard-regular\.woff2"\)/s);
+  assert.match(html, /font-family: "나눔고딕";[^}]*url\("fonts\/nanum-gothic-regular\.woff2"\)/s);
+  assert.doesNotMatch(html, /font-family: "나눔고딕";[^}]*src: local/s);
+});
+
 test("composition rejects a cut shorter than the renderer minimum", () => {
   const invalid = {
     ...manifest,

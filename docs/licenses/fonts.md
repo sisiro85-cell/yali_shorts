@@ -23,4 +23,4 @@
 - 실행 파일에 글꼴 파일을 번들링할 때는 각 글꼴의 저작권 고지와 SIL Open Font License 1.1 원문을 함께 배포합니다.
 - `frontend/src/assets/fonts`의 번들 파일을 실행 파일에 포함할 때도 각 글꼴의 저작권 고지와 SIL Open Font License 1.1 원문을 함께 배포합니다.
 - 글꼴을 수정하거나 재배포하는 경우에는 해당 글꼴의 Reserved Font Name 조건과 upstream별 고지사항을 다시 확인합니다.
-- 최종 렌더러를 별도 프로세스로 패키징할 때는 같은 번들 글꼴을 렌더러 자산에도 복사해 미리보기와 출력 결과의 모양을 일치시킵니다.
+- 렌더 워커는 렌더 시작 시 `frontend/src/assets/fonts`에서 필요한 글꼴만 임시 composition의 `fonts/`로 복사하고, HTML의 `@font-face`가 해당 파일을 읽도록 하여 미리보기와 출력 결과의 모양을 일치시킵니다.

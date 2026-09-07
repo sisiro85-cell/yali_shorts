@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { access, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createCompositionWorkspace, normalizeRenderTimeoutMs, renderManifest } from "./renderer.js";
@@ -111,6 +111,17 @@ test("concurrent renders receive isolated composition workspaces", async () => {
       createCompositionWorkspace(projectRoot, manifest.output_variant_id),
     ]);
     assert.notEqual(first, second);
+  } finally {
+    await rm(projectRoot, { recursive: true, force: true });
+  }
+});
+
+test("composition workspaces include the bundled subtitle fonts", async () => {
+  const projectRoot = await mkdtemp(join(tmpdir(), "yali-render-worker-"));
+  try {
+    const workspace = await createCompositionWorkspace(projectRoot, manifest.output_variant_id);
+    await assert.doesNotReject(access(join(workspace, "fonts", "pretendard-bold.woff2")));
+    await assert.doesNotReject(access(join(workspace, "fonts", "nanum-gothic-regular.woff2")));
   } finally {
     await rm(projectRoot, { recursive: true, force: true });
   }

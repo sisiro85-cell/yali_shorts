@@ -34,3 +34,28 @@ def test_bridge_returns_generated_png_as_image_content() -> None:
     assert content[0]["type"] == "image"
     assert content[0]["mimeType"] == "image/png"
     assert content[0]["data"] == base64.b64encode(png).decode("ascii")
+
+
+def test_bridge_preserves_a_safe_image_provider_error_message() -> None:
+    def fail_generation(**_: object) -> bytes:
+        raise RuntimeError("Codex CLI exited before ImageGen started")
+
+    response = handle_request(
+        {
+            "jsonrpc": "2.0",
+            "id": 3,
+            "method": "tools/call",
+            "params": {
+                "name": "generate_image",
+                "arguments": {"prompt": "a blue circle"},
+            },
+        },
+        generate_image=fail_generation,
+    )
+
+    assert response is not None
+    result = response["result"]
+    assert result["isError"] is True
+    assert result["content"][0]["text"] == (
+        "Codex ImageGen failed: Codex CLI exited before ImageGen started"
+    )

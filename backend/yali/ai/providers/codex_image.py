@@ -5,7 +5,7 @@ import os
 import subprocess
 from pathlib import Path
 
-from yali.ai.providers.codex_mcp import generate_image as generate_image_via_mcp
+from yali.ai.providers.codex_mcp import CodexMcpError, generate_image as generate_image_via_mcp
 from yali.ai.providers.codex_app_server import process_creation_kwargs, resolve_codex_command
 from yali.ai.protocols import (
     ImageGenerationRequest,
@@ -204,13 +204,17 @@ class CodexImageProvider:
 
     def generate(self, request: ImageGenerationRequest) -> ImageGenerationResponse:
         model = (request.model_name or self.model).strip()
-        content = generate_image_via_mcp(
-            request.prompt,
-            model_name=model,
-            cwd=self.cwd,
-            timeout_seconds=self.timeout_seconds,
-            aspect_ratio=request.aspect_ratio,
-        )
+        try:
+            content = generate_image_via_mcp(
+                request.prompt,
+                model_name=model,
+                cwd=self.cwd,
+                timeout_seconds=self.timeout_seconds,
+                aspect_ratio=request.aspect_ratio,
+            )
+        except CodexMcpError as exc:
+            detail = " ".join(str(exc).split())[:400]
+            raise CodexImageError(f"Codex ImageGen 요청 실패: {detail or 'MCP 브리지 오류'}") from exc
         return ImageGenerationResponse(
             content=content,
             media_type="image/png",

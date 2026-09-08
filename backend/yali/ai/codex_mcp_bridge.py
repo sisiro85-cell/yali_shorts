@@ -61,6 +61,11 @@ def _image_tool() -> dict[str, Any]:
     }
 
 
+def _safe_error_message(error: Exception) -> str:
+    detail = " ".join(str(error).split())
+    return detail[:400] if detail else error.__class__.__name__
+
+
 def _arguments(value: Any) -> tuple[str, str, str | None]:
     if not isinstance(value, dict):
         raise ValueError("generate_text arguments must be an object")
@@ -150,11 +155,11 @@ def handle_request(
                 )
             except ValueError as exc:
                 return _error(request_id, -32602, str(exc))
-            except Exception:
+            except Exception as exc:
                 return _result(
                     request_id,
                     {
-                        "content": [{"type": "text", "text": "Codex ImageGen failed."}],
+                        "content": [{"type": "text", "text": f"Codex ImageGen failed: {_safe_error_message(exc)}"}],
                         "isError": True,
                     },
                 )

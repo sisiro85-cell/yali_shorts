@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from yali.ai import protocols
-from yali.ai.providers.codex_mcp import _tool_image
+from yali.ai.providers.codex_mcp import CodexMcpError, _tool_image
 from yali.ai.providers import codex_image
 from yali.ai.providers.codex_image import (
     CodexImageError,
@@ -173,6 +173,28 @@ def test_codex_image_provider_uses_the_local_mcp_image_tool(monkeypatch: pytest.
 
     assert response.content == content
     assert calls[0]["aspect_ratio"] == "1:1"
+
+
+def test_codex_image_provider_preserves_mcp_failure_detail(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fail_generation(*args: object, **kwargs: object) -> bytes:
+        raise CodexMcpError("Codex CLI exited before ImageGen started")
+
+    monkeypatch.setattr(codex_image, "generate_image_via_mcp", fail_generation)
+    provider = CodexImageProvider()
+    request = protocols.ImageGenerationRequest(
+        prompt="MCP 실패 상세",
+        model_name=None,
+        metadata=protocols.GenerationMetadata(
+            request_id="request-mcp-image-failure-1",
+            project_id="project-1",
+            cut_id="cut-1",
+            operation=protocols.Operation.REGENERATE_CUT,
+            model=None,
+        ),
+    )
+
+    with pytest.raises(CodexImageError, match="Codex CLI exited before ImageGen started"):
+        provider.generate(request)
 
 
 def test_mcp_image_content_decodes_only_png_image_items() -> None:

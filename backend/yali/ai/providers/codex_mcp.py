@@ -34,7 +34,8 @@ def process_creation_kwargs(platform_name: str | None = None) -> dict[str, int]:
 
 def _process_environment(cwd: Path) -> dict[str, str]:
     environment = os.environ.copy()
-    roots = [str(cwd)]
+    backend_root = Path(__file__).resolve().parents[3]
+    roots = [str(backend_root), str(cwd)]
     existing = environment.get("PYTHONPATH", "").strip()
     if existing:
         roots.append(existing)
@@ -224,7 +225,15 @@ def _tool_image(result: dict[str, Any]) -> bytes:
     if not isinstance(content, list):
         raise CodexMcpError("Codex MCP returned invalid image content")
     if result.get("isError"):
-        raise CodexMcpError("Codex MCP image generation failed")
+        detail = "\n".join(
+            item["text"].strip()
+            for item in content
+            if isinstance(item, dict)
+            and item.get("type") == "text"
+            and isinstance(item.get("text"), str)
+            and item["text"].strip()
+        )
+        raise CodexMcpError(detail or "Codex MCP image generation failed")
     encoded = next(
         (
             item.get("data")

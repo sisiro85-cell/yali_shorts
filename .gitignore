@@ -50,6 +50,7 @@ streamlit.log
 .coverage
 coverage.xml
 htmlcov/
+.ai-dev/
 .codegraph
 /docs/superpowers
 .understand-anything

@@ -1,0 +1,32 @@
+version: 1
+project:
+  name: yali-shortform-studio
+  root: ../..
+
+commands:
+  build:
+    run: cmd.exe /d /c "npm.cmd run qa:build"
+    required: true
+    timeout_seconds: 300
+  static:
+    run: cmd.exe /d /c "npm.cmd run qa:static"
+    required: true
+    timeout_seconds: 180
+  unit:
+    run: cmd.exe /d /c "npm.cmd run qa:unit"
+    required: true
+    timeout_seconds: 600
+  integration:
+    run: cmd.exe /d /c "npm.cmd run qa:integration"
+    required: true
+    timeout_seconds: 300
+  e2e:
+    run: cmd.exe /d /c "npm.cmd run qa:e2e"
+    required: true
+    timeout_seconds: 300
+
+quality_gate:
+  critical_failures_max: 0
+
+regressions: []
+output_dir: ../../.ai-dev/reports

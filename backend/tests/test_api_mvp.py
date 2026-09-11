@@ -88,6 +88,22 @@ def _complete_idea(client: TestClient, project: Project) -> None:
     assert completed.status_code == 200
 
 
+def test_api_allows_isolated_integration_browser_origin(tmp_path: Path) -> None:
+    client, _ = _client(tmp_path)
+
+    response = client.options(
+        "/api/projects",
+        headers={
+            "Origin": "http://127.0.0.1:5175",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "content-type",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "http://127.0.0.1:5175"
+
+
 def test_mvp_script_and_cut_plan_are_generated_and_restored(tmp_path: Path) -> None:
     client, project = _client(tmp_path)
     _complete_idea(client, project)

@@ -1,0 +1,82 @@
+schema_version: 1
+id: D00
+project: yali-shortform-studio
+pilot_path: .forgegate/pilots/yali-shortform-studio.yaml
+project_root: .
+documents:
+  spec: docs/plans/2026-09-11-content-studio-implementation-design.md
+  plan: docs/plans/2026-09-05-qa-implementation.md
+  handoff: docs/verification/T00-2026-09-05.md
+requirements:
+  - id: REQ-ISOLATED-QA
+    description: Browser E2E and integration checks must start their own frontend ports and never reuse a user's running development server.
+    required: true
+    evidence_refs:
+      - kind: stage
+        id: integration
+        availability: existing
+      - kind: stage
+        id: e2e
+        availability: existing
+  - id: REQ-BASELINE
+    description: The repository baseline must run backend, frontend, render-worker, and browser checks through the project-specific pilot.
+    required: true
+    evidence_refs:
+      - kind: stage
+        id: build
+        availability: existing
+      - kind: stage
+        id: static
+        availability: existing
+      - kind: stage
+        id: unit
+        availability: existing
+work_items:
+  - id: D00-QA-PORTS
+    requirement_ids:
+      - REQ-ISOLATED-QA
+    depends_on: []
+    risk: mechanical
+    targets:
+      - frontend/playwright.config.ts
+      - frontend/playwright.integration.config.ts
+  - id: D00-API-CORS
+    requirement_ids:
+      - REQ-ISOLATED-QA
+    depends_on:
+      - D00-QA-PORTS
+    risk: mechanical
+    targets:
+      - backend/yali/api/app.py
+      - backend/tests/test_api_mvp.py
+  - id: D00-PILOT
+    requirement_ids:
+      - REQ-BASELINE
+    depends_on:
+      - D00-QA-PORTS
+      - D00-API-CORS
+    risk: mechanical
+    targets:
+      - .forgegate/pilots/yali-shortform-studio.yaml
+      - forgegate-project-d00.yaml
+      - .gitignore
+      - package.json
+      - package-lock.json
+      - docs/verification
+      - .agents
+      - AGENTS.md
+      - .forgegate
+change_roots:
+  - .agents
+  - .forgegate
+  - .gitignore
+  - package.json
+  - package-lock.json
+  - AGENTS.md
+  - docs/verification
+  - forgegate-d00.yaml
+  - forgegate-project-d00.yaml
+  - frontend/playwright.config.ts
+  - frontend/playwright.integration.config.ts
+  - backend/yali/api/app.py
+  - backend/tests/test_api_mvp.py

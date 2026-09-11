@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "kind": "forgegate-bootstrap",
+  "template_version": 1,
+  "target_root": "C:\\프로그램\\쇼츠자동화",
+  "forgegate_root": "C:\\프로그램\\코딩시스템",
+  "pilot_path": null,
+  "hook_sha256": "0e4f6e95542de1d1f88921fe8ea46cc8301adf37e6203acbf661b0aa3a2ad733",
+  "skill_sha256": "c02c4995133d7f20ac15f7b202b33c516ae2dbf314c09a45ac208ddea641f967"
+}

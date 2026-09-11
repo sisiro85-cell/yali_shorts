@@ -1,0 +1,12 @@
+{
+  "name": "yali-shortform-studio",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "qa:build": "npm --prefix frontend run build && npm --prefix render-worker run build",
+    "qa:static": "npm --prefix frontend run lint && npm --prefix render-worker run lint",
+    "qa:unit": ".venv\\Scripts\\python.exe -m pytest backend\\tests -q && npm --prefix frontend run unit && npm --prefix render-worker run unit",
+    "qa:integration": "npm --prefix frontend run integration",
+    "qa:e2e": "npm --prefix frontend run e2e"
+  }
+}

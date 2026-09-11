@@ -1,0 +1,14 @@
+schema_version: 1
+id: yali-content-studio-d00
+project: yali-shortform-studio
+tasks:
+  - id: D00
+    task_path: forgegate-d00.yaml
+    depends_on: []
+final_checks:
+  - id: DIFF-CHECK
+    kind: command
+    required: true
+    command: git diff --check
+max_task_attempts: 5
+max_project_minutes: 90

@@ -4,6 +4,7 @@ Yali Short-form Studio는 쇼츠·릴스·카드뉴스 제작을 위한 로컬 �
 
 ## QA와 다음 구현 기준
 
+- [인스타툰·카드뉴스·상품 쇼츠 기능구현 설계서](docs/plans/2026-09-11-content-studio-implementation-design.md): 현재 코드 분석, 콘텐츠 유형/출력 형식 분리, 단계별 기능·데이터·API·검증 계획을 정리한 검토용 설계안입니다.
 - [QA 기반 단계별 구현지시서](docs/plans/2026-09-05-qa-implementation.md): 우선순위, 변경 파일, API 계약, UI 승인, 검증·완료 조건을 작업별로 정리했습니다.
 - [2026-09-05 실측 QA 기준선](docs/verification/qa-baseline-2026-09-05.md): 실행한 테스트, 재현한 문제, 실연동·배포 검증의 남은 범위를 구분합니다.
 
